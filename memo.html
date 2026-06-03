@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>配信メモ</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#0d0f14;--bg2:#13161f;--bg3:#1a1e2a;--bg4:#212535;
+  --border:#272b3a;--accent:#5b8def;--green:#3dd68c;
+  --yellow:#f5a524;--red:#f5455a;--purple:#a78bfa;
+  --text:#e2e4ed;--text2:#8890a8;--text3:#4e5469;
+  --font:'Noto Sans JP',sans-serif;--mono:'DM Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overscroll-behavior:none}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* ── ローディング ── */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:9999;transition:opacity .3s}
+#loading.hide{opacity:0;pointer-events:none}
+.spin{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── レイアウト ── */
+#app{display:none;flex-direction:column;height:100%;overflow:hidden}
+#app.show{display:flex}
+
+/* ── ヘッダー ── */
+.app-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;flex-shrink:0}
+.app-header h1{font-size:15px;font-weight:700;flex:1}
+.header-actions{display:flex;gap:8px;align-items:center}
+
+/* ── タブ ── */
+.genre-tabs{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 12px;display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0}
+.genre-tabs::-webkit-scrollbar{display:none}
+.tab-btn{padding:10px 14px;font-size:12px;font-weight:600;font-family:var(--font);color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .15s}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-btn:hover{color:var(--text2)}
+
+/* ── コンテンツエリア ── */
+.content{flex:1;overflow-y:auto;padding:12px}
+
+/* ── キャストグリッド ── */
+.cast-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding-bottom:80px}
+.cast-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 12px;cursor:pointer;transition:all .15s;text-align:center;position:relative;overflow:hidden}
+.cast-card::before{content:'';position:absolute;inset:0;background:var(--accent);opacity:0;transition:opacity .15s}
+.cast-card:active::before{opacity:.08}
+.cast-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.cast-avatar{width:48px;height:48px;border-radius:50%;background:var(--bg3);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:var(--accent)}
+.cast-name{font-size:13px;font-weight:700;color:var(--text)}
+.cast-memo-count{font-size:11px;color:var(--text3);margin-top:2px}
+.cast-shop-badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;background:var(--bg3);color:var(--text2);margin-top:4px}
+
+/* ── メモ一覧パネル ── */
+.memo-panel{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column}
+.memo-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+.memo-sheet{position:absolute;bottom:0;left:0;right:0;background:var(--bg2);border-radius:20px 20px 0 0;max-height:85vh;display:flex;flex-direction:column;animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.memo-sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0}
+.memo-sheet-header{padding:16px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.memo-sheet-header .avatar{width:36px;height:36px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:var(--accent);flex-shrink:0}
+.memo-sheet-header .name{font-size:15px;font-weight:700;flex:1}
+.memo-sheet-close{background:var(--bg3);border:none;cursor:pointer;color:var(--text2);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px}
+.memo-list{overflow-y:auto;padding:10px 12px 24px;flex:1}
+.memo-genre-label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:10px 4px 6px;margin-top:4px}
+.memo-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.memo-item:active{transform:scale(.98)}
+.memo-item:hover{border-color:var(--green)}
+.memo-item-title{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px}
+.memo-item-body{font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;word-break:break-all}
+.memo-copy-hint{position:absolute;top:8px;right:10px;font-size:10px;color:var(--text3)}
+.memo-copied{position:absolute;inset:0;background:rgba(61,214,140,.15);border-color:var(--green)!important;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--green);opacity:0;transition:opacity .2s;border-radius:10px;pointer-events:none}
+.memo-item.copied .memo-copied{opacity:1}
+.empty-state{text-align:center;padding:32px 16px;color:var(--text3);font-size:13px}
+
+/* ── 管理パネル ── */
+.admin-panel{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column}
+.admin-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.7)}
+.admin-sheet{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.admin-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;gap:10px}
+.admin-header h2{font-size:15px;font-weight:700;flex:1}
+.admin-content{flex:1;overflow-y:auto;padding:16px}
+.admin-tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:3px}
+.admin-tab{flex:1;padding:7px;font-size:12px;font-weight:600;font-family:var(--font);border:none;cursor:pointer;border-radius:6px;background:none;color:var(--text2);transition:all .15s}
+.admin-tab.active{background:var(--bg2);color:var(--text)}
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.section-title{font-size:13px;font-weight:700;color:var(--text2)}
+.item-row{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.item-row-info{flex:1;min-width:0}
+.item-row-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-row-sub{font-size:11px;color:var(--text3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-row-actions{display:flex;gap:6px;flex-shrink:0}
+
+/* ── モーダル ── */
+.modal-ov{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center;padding:0}
+.modal-ov.hidden{display:none}
+.modal{background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;animation:slideUp .2s ease}
+.modal-hd{padding:16px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-hd h3{font-size:15px;font-weight:700}
+.modal-cl{background:var(--bg3);border:none;cursor:pointer;color:var(--text2);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px}
+.modal-bd{padding:16px;overflow-y:auto;flex:1}
+.modal-ft{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px}
+.fg input,.fg select,.fg textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--font);font-size:14px;outline:none;resize:vertical}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--accent)}
+.fg textarea{min-height:100px}
+
+/* ── ボタン ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:600;transition:all .12s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-ghost{background:var(--bg3);color:var(--text2);border:1px solid var(--border)}
+.btn-ghost:hover{color:var(--text)}
+.btn-green{background:var(--green);color:#111}
+.btn-red{background:rgba(245,69,90,.15);color:var(--red);border:1px solid rgba(245,69,90,.3)}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── トースト ── */
+#toast-wrap{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none;min-width:180px}
+.toast{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;animation:toastIn .2s ease;text-align:center;white-space:nowrap}
+.toast.success{border-color:var(--green);color:var(--green)}
+.toast.error{border-color:var(--red);color:var(--red)}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── フィルタ ── */
+.search-bar{padding:10px 12px;position:relative}
+.search-bar input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 12px 9px 36px;color:var(--text);font-family:var(--font);font-size:14px;outline:none}
+.search-bar input:focus{border-color:var(--accent)}
+.search-bar::before{content:'🔍';position:absolute;left:22px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none}
+
+/* ── スクロールバー ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div><div style="font-size:12px;color:var(--text3)">読み込み中...</div></div>
+
+<div id="app">
+  <!-- ヘッダー -->
+  <header class="app-header">
+    <div style="font-size:18px">📋</div>
+    <h1>配信メモ</h1>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-sm" onclick="openAdmin()">⚙️ 管理</button>
+    </div>
+  </header>
+
+  <!-- ジャンルタブ -->
+  <div class="genre-tabs" id="genre-tabs"></div>
+
+  <!-- 検索バー -->
+  <div class="search-bar"><input type="search" id="search-input" placeholder="キャスト名で検索..." oninput="renderCasts()"></div>
+
+  <!-- キャストグリッド -->
+  <div class="content">
+    <div class="cast-grid" id="cast-grid"></div>
+  </div>
+</div>
+
+<!-- メモ一覧パネル -->
+<div id="memo-panel" style="display:none" class="memo-panel">
+  <div class="memo-backdrop" onclick="closeMemPanel()"></div>
+  <div class="memo-sheet">
+    <div class="memo-sheet-handle"></div>
+    <div class="memo-sheet-header">
+      <div class="avatar" id="panel-avatar"></div>
+      <div class="name" id="panel-name"></div>
+      <button class="memo-sheet-close" onclick="closeMemPanel()">✕</button>
+    </div>
+    <div class="memo-list" id="panel-memo-list"></div>
+  </div>
+</div>
+
+<!-- 管理パネル -->
+<div id="admin-panel" style="display:none" class="admin-panel">
+  <div class="admin-backdrop" onclick="closeAdmin()"></div>
+  <div class="admin-sheet">
+    <div class="admin-header">
+      <button class="btn btn-ghost btn-sm" onclick="closeAdmin()">✕ 閉じる</button>
+      <h2>管理</h2>
+    </div>
+    <div class="admin-content">
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="switchAdminTab('memo',this)">📝 メモ</button>
+        <button class="admin-tab" onclick="switchAdminTab('genre',this)">🏷 ジャンル</button>
+      </div>
+      <!-- メモ管理 -->
+      <div id="admin-memo-pane">
+        <div class="section-header">
+          <span class="section-title">メモ一覧</span>
+          <button class="btn btn-primary btn-sm" onclick="openMemoModal()">＋ 追加</button>
+        </div>
+        <div id="admin-memo-list"></div>
+      </div>
+      <!-- ジャンル管理 -->
+      <div id="admin-genre-pane" style="display:none">
+        <div class="section-header">
+          <span class="section-title">ジャンル一覧</span>
+          <button class="btn btn-primary btn-sm" onclick="openGenreModal()">＋ 追加</button>
+        </div>
+        <div id="admin-genre-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- モーダル：メモ追加/編集 -->
+<div class="modal-ov hidden" id="m-memo">
+  <div class="modal">
+    <div class="modal-hd"><h3 id="memo-modal-title">メモ追加</h3><button class="modal-cl" onclick="closeModal('m-memo')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg">
+        <label>キャスト名 *</label>
+        <select id="mm-cast"><option value="">選択してください</option></select>
+      </div>
+      <div class="fg">
+        <label>ジャンル</label>
+        <select id="mm-genre"><option value="">未分類</option></select>
+      </div>
+      <div class="fg">
+        <label>本文（コピーされるテキスト）*</label>
+        <textarea id="mm-body" placeholder="ここに配信で使うテキストを入力..."></textarea>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('m-memo')">キャンセル</button>
+      <button class="btn btn-primary" style="flex:2" onclick="confirmMemo()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- モーダル：ジャンル追加/編集 -->
+<div class="modal-ov hidden" id="m-genre">
+  <div class="modal">
+    <div class="modal-hd"><h3 id="genre-modal-title">ジャンル追加</h3><button class="modal-cl" onclick="closeModal('m-genre')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>ジャンル名 *</label><input type="text" id="gm-name" placeholder="例: 挨拶 / ゲーム / 自己紹介"></div>
+      <div class="fg"><label>表示順</label><input type="number" id="gm-order" value="1" min="1"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('m-genre')">キャンセル</button>
+      <button class="btn btn-primary" style="flex:2" onclick="confirmGenre()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script>
+const SUPABASE_URL = 'https://ikzctvohinssktfgspny.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlremN0dm9oaW5zc2t0ZmdzcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTEyODMsImV4cCI6MjA5NDI2NzI4M30.xcrT6Rt2_AUpUnBHC4xkEFefUsIfYdKqsCsyqXpa8yI';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function sbQ(table, opts={}) {
+  let q = sb.from(table).select(opts.select||'*');
+  if(opts.eq)    Object.entries(opts.eq).forEach(([k,v])=>{ q=q.eq(k,v); });
+  if(opts.order) q=q.order(opts.order, {ascending:opts.asc!==false});
+  const {data,error}=await q;
+  if(error) throw new Error(error.message);
+  return data||[];
+}
+
+const D = {
+  casts:  [],
+  memos:  [],
+  genres: [],
+  activeGenre: '__all__',
+  memoEditTarget: null,
+  genreEditTarget: null,
+};
+
+// ── API (Supabase直接) ──────────────────
+async function apiGet(action, params={}) {
+  switch(action) {
+    case 'getCasts': {
+      const rows = await sbQ('casts', {order:'sort_order', asc:true});
+      return rows.filter(r=>r.name&&r.name!=='管理者').map(r=>({
+        name:r.name, realName:r.real_name||'', shop:r.shop||''
+      }));
+    }
+    case 'getMemoMaster': {
+      const rows = await sbQ('memos', {order:'created_at'});
+      return rows.map(r => ({
+        row: r.id,
+        castName: r.cast_name,
+        genre: r.genre || '',
+        body: r.body || ''
+      }));
+    }
+    case 'getGenres': {
+      const gs = await sbQ('genres', {order:'display_order'});
+      return gs.map(g=>({row:g.id, id:String(g.id), name:g.name, order:g.display_order||0}));
+    }
+    case 'saveMemo': {
+      const mrow = {cast_name:params.castName||'', genre:params.genre||'', body:params.body||''};
+      if(params.row) { const {error}=await sb.from('memos').update(mrow).eq('id',params.row); if(error)throw new Error(error.message); }
+      else { const {error}=await sb.from('memos').insert({...mrow, created_at:new Date().toISOString()}); if(error)throw new Error(error.message); }
+      return {ok:true};
+    }
+    case 'deleteMemo': {
+      const {error}=await sb.from('memos').delete().eq('id',params.row);
+      if(error)throw new Error(error.message);
+      return {ok:true};
+    }
+    case 'saveGenre': {
+      const grow = {name:params.name||'', display_order:params.order||0};
+      if(params.row) { const {error}=await sb.from('genres').update(grow).eq('id',params.row); if(error)throw new Error(error.message); }
+      else { const {error}=await sb.from('genres').insert({...grow, created_at:new Date().toISOString()}); if(error)throw new Error(error.message); }
+      return {ok:true};
+    }
+    case 'deleteGenre': {
+      const {error}=await sb.from('genres').delete().eq('id',params.row);
+      if(error)throw new Error(error.message);
+      return {ok:true};
+    }
+    default: throw new Error('Unknown action: '+action);
+  }
+}
+
+// ── 初期化 ──────────────────────────────
+async function init() {
+  try {
+    const [casts, memos, genres] = await Promise.all([
+      apiGet('getCasts'),
+      apiGet('getMemoMaster'),
+      apiGet('getGenres'),
+    ]);
+    D.casts  = casts.filter(c => c.name && c.name !== '管理者');
+    D.memos  = memos;
+    D.genres = genres;
+  } catch(e) {
+    console.error(e);
+  }
+  document.getElementById('loading').classList.add('hide');
+  document.getElementById('app').classList.add('show');
+  renderGenreTabs();
+  renderCasts();
+}
+
+// ── ジャンルタブ ─────────────────────────
+function renderGenreTabs() {
+  const wrap = document.getElementById('genre-tabs');
+  wrap.innerHTML = '';
+  const genres = ['__all__', ...D.genres.map(g=>g.name)];
+  genres.forEach(g => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (D.activeGenre===g?' active':'');
+    btn.textContent = g==='__all__' ? '全て' : g;
+    btn.onclick = () => { D.activeGenre=g; renderGenreTabs(); renderCasts(); };
+    wrap.appendChild(btn);
+  });
+}
+
+// ── キャストグリッド ─────────────────────
+function renderCasts() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const grid = document.getElementById('cast-grid');
+  grid.innerHTML = '';
+
+  // ジャンル絞り込み：そのジャンルのメモを持つキャストのみ
+  let casts = D.casts;
+  if (D.activeGenre !== '__all__') {
+    const castNamesWithGenre = new Set(
+      D.memos.filter(m => m.genre === D.activeGenre).map(m => m.castName)
+    );
+    casts = casts.filter(c => castNamesWithGenre.has(c.name));
+  }
+  if (q) casts = casts.filter(c => c.name.toLowerCase().includes(q));
+
+  if (!casts.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1">キャストが見つかりません</div>';
+    return;
+  }
+
+  casts.forEach(cast => {
+    const memoCount = D.memos.filter(m =>
+      m.castName === cast.name &&
+      (D.activeGenre === '__all__' || m.genre === D.activeGenre)
+    ).length;
+
+    const card = document.createElement('div');
+    card.className = 'cast-card';
+    const initial = cast.name.charAt(0);
+    card.innerHTML = `
+      <div class="cast-avatar">${initial}</div>
+      <div class="cast-name">${cast.name}</div>
+      <div class="cast-memo-count">${memoCount}件のメモ</div>
+      ${cast.shop ? `<span class="cast-shop-badge">${cast.shop}</span>` : ''}
+    `;
+    card.onclick = () => openMemoPanel(cast);
+    grid.appendChild(card);
+  });
+}
+
+// ── メモパネル ───────────────────────────
+function openMemoPanel(cast) {
+  const initial = cast.name.charAt(0);
+  document.getElementById('panel-avatar').textContent = initial;
+  document.getElementById('panel-name').textContent = cast.name;
+
+  const memos = D.memos.filter(m =>
+    m.castName === cast.name &&
+    (D.activeGenre === '__all__' || m.genre === D.activeGenre)
+  );
+
+  const list = document.getElementById('panel-memo-list');
+  list.innerHTML = '';
+
+  if (!memos.length) {
+    list.innerHTML = '<div class="empty-state">メモがありません<br><span style="font-size:12px;color:var(--text3)">管理 → メモ追加から登録できます</span></div>';
+  } else {
+    // ジャンルごとにグループ化
+    const byGenre = {};
+    memos.forEach(m => {
+      const g = m.genre || '未分類';
+      if (!byGenre[g]) byGenre[g] = [];
+      byGenre[g].push(m);
+    });
+
+    Object.entries(byGenre).forEach(([genre, items]) => {
+      if (D.activeGenre === '__all__' && Object.keys(byGenre).length > 1) {
+        const label = document.createElement('div');
+        label.className = 'memo-genre-label';
+        label.textContent = genre;
+        list.appendChild(label);
+      }
+      items.forEach(memo => {
+        const item = document.createElement('div');
+        item.className = 'memo-item';
+        item.innerHTML = `
+
+          <div class="memo-item-body">${memo.body}</div>
+          <div class="memo-copy-hint">タップでコピー</div>
+          <div class="memo-copied">✅ コピーしました</div>
+        `;
+        item.onclick = () => copyMemo(item, memo.body);
+        list.appendChild(item);
+      });
+    });
+  }
+
+  document.getElementById('memo-panel').style.display = 'flex';
+}
+
+function closeMemPanel() {
+  document.getElementById('memo-panel').style.display = 'none';
+}
+
+async function copyMemo(el, text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch(e) {
+    // フォールバック
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+  el.classList.add('copied');
+  setTimeout(() => el.classList.remove('copied'), 1200);
+  toast('コピーしました', 'success');
+}
+
+// ── 管理パネル ───────────────────────────
+function openAdmin() {
+  renderAdminMemoList();
+  renderAdminGenreList();
+  populateMemoSelects();
+  document.getElementById('admin-panel').style.display = 'flex';
+}
+function closeAdmin() {
+  document.getElementById('admin-panel').style.display = 'none';
+}
+function switchAdminTab(tab, btn) {
+  document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('admin-memo-pane').style.display  = tab==='memo'  ? '' : 'none';
+  document.getElementById('admin-genre-pane').style.display = tab==='genre' ? '' : 'none';
+}
+
+function renderAdminMemoList() {
+  const el = document.getElementById('admin-memo-list');
+  el.innerHTML = '';
+  if (!D.memos.length) {
+    el.innerHTML = '<div class="empty-state">メモがありません</div>';
+    return;
+  }
+  D.memos.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `
+      <div class="item-row-info">
+        <div class="item-row-name">${m.castName}</div>
+        <div class="item-row-sub">${m.genre||'未分類'} / ${m.body.slice(0,30)}${m.body.length>30?'…':''}</div>
+      </div>
+      <div class="item-row-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openMemoModal(${m.row})">編集</button>
+        <button class="btn btn-red btn-sm" onclick="doDeleteMemo(${m.row})">削除</button>
+      </div>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function renderAdminGenreList() {
+  const el = document.getElementById('admin-genre-list');
+  el.innerHTML = '';
+  if (!D.genres.length) {
+    el.innerHTML = '<div class="empty-state">ジャンルがありません</div>';
+    return;
+  }
+  D.genres.forEach(g => {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `
+      <div class="item-row-info">
+        <div class="item-row-name">${g.name}</div>
+        <div class="item-row-sub">表示順: ${g.order}</div>
+      </div>
+      <div class="item-row-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openGenreModal(${g.row})">編集</button>
+        <button class="btn btn-red btn-sm" onclick="doDeleteGenre(${g.row})">削除</button>
+      </div>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function populateMemoSelects() {
+  // キャストセレクト
+  const castSel = document.getElementById('mm-cast');
+  const curCast = castSel.value;
+  castSel.innerHTML = '<option value="">選択してください</option>';
+  D.casts.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.name; o.textContent = c.name;
+    if (c.name===curCast) o.selected=true;
+    castSel.appendChild(o);
+  });
+  // ジャンルセレクト
+  const genreSel = document.getElementById('mm-genre');
+  const curGenre = genreSel.value;
+  genreSel.innerHTML = '<option value="">未分類</option>';
+  D.genres.forEach(g => {
+    const o = document.createElement('option');
+    o.value = g.name; o.textContent = g.name;
+    if (g.name===curGenre) o.selected=true;
+    genreSel.appendChild(o);
+  });
+}
+
+// メモモーダル
+function openMemoModal(row=0) {
+  const m = row ? D.memos.find(x=>x.row===row) : null;
+  D.memoEditTarget = m || null;
+  document.getElementById('memo-modal-title').textContent = m ? 'メモ編集' : 'メモ追加';
+  populateMemoSelects();
+  document.getElementById('mm-cast').value  = m?.castName || '';
+  document.getElementById('mm-genre').value = m?.genre    || '';
+  document.getElementById('mm-body').value  = m?.body     || '';
+  document.getElementById('m-memo').classList.remove('hidden');
+}
+async function confirmMemo() {
+  const castName = document.getElementById('mm-cast').value;
+  const genre    = document.getElementById('mm-genre').value;
+  const body     = document.getElementById('mm-body').value.trim();
+  if (!castName) { toast('キャストを選択してください', 'error'); return; }
+  if (!body)     { toast('本文を入力してください', 'error'); return; }
+  const params = { castName, genre, body };
+  if (D.memoEditTarget) params.row = D.memoEditTarget.row;
+  try {
+    await apiGet('saveMemo', params);
+    D.memos = await apiGet('getMemoMaster');
+    toast('保存しました', 'success');
+    closeModal('m-memo');
+    renderAdminMemoList();
+    renderCasts();
+  } catch(e) { toast('保存エラー: '+e.message, 'error'); }
+}
+async function doDeleteMemo(row) {
+  if (!confirm('このメモを削除しますか？')) return;
+  try {
+    await apiGet('deleteMemo', { row });
+    D.memos = await apiGet('getMemoMaster');
+    toast('削除しました', 'success');
+    renderAdminMemoList();
+    renderCasts();
+  } catch(e) { toast('削除エラー', 'error'); }
+}
+
+// ジャンルモーダル
+function openGenreModal(row=0) {
+  const g = row ? D.genres.find(x=>x.row===row) : null;
+  D.genreEditTarget = g || null;
+  document.getElementById('genre-modal-title').textContent = g ? 'ジャンル編集' : 'ジャンル追加';
+  document.getElementById('gm-name').value  = g?.name  || '';
+  document.getElementById('gm-order').value = g?.order || D.genres.length+1;
+  document.getElementById('m-genre').classList.remove('hidden');
+}
+async function confirmGenre() {
+  const name  = document.getElementById('gm-name').value.trim();
+  const order = parseInt(document.getElementById('gm-order').value) || 1;
+  if (!name) { toast('ジャンル名を入力してください', 'error'); return; }
+  const params = { name, order };
+  if (D.genreEditTarget) params.row = D.genreEditTarget.row;
+  try {
+    await apiGet('saveGenre', params);
+    D.genres = await apiGet('getGenres');
+    toast('保存しました', 'success');
+    closeModal('m-genre');
+    renderAdminGenreList();
+    renderGenreTabs();
+    populateMemoSelects();
+  } catch(e) { toast('保存エラー: '+e.message, 'error'); }
+}
+async function doDeleteGenre(row) {
+  if (!confirm('このジャンルを削除しますか？')) return;
+  try {
+    await apiGet('deleteGenre', { row });
+    D.genres = await apiGet('getGenres');
+    toast('削除しました', 'success');
+    renderAdminGenreList();
+    renderGenreTabs();
+  } catch(e) { toast('削除エラー', 'error'); }
+}
+
+// ── ユーティリティ ───────────────────────
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toast-wrap').appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+init();
+</script>
+</body>
+</html>

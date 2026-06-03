@@ -1,0 +1,3180 @@
+<!DOCTYPE html><!-- v20260513175829 -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>シフト管理 20260530085325</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:#0d0f14; --bg2:#13161f; --bg3:#1a1e2a; --bg4:#212535;
+  --border:#272b3a; --accent:#5b8def; --green:#3dd68c;
+  --yellow:#f5a524; --red:#f5455a; --purple:#a78bfa;
+  --text:#e2e4ed; --text2:#8890a8; --text3:#4e5469;
+  --r:10px; --font:'Noto Sans JP',sans-serif; --mono:'DM Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* ローディング */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:9999;transition:opacity .3s}
+#loading.hide{opacity:0;pointer-events:none}
+.spin{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ログイン画面 */
+#login-screen{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:36px 28px;width:100%;max-width:360px;text-align:center;max-height:90vh;overflow-y:auto}
+.login-logo{width:60px;height:60px;background:#06C755;border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
+.login-box h1{font-size:20px;font-weight:700;margin-bottom:8px}
+.login-box p{color:var(--text2);font-size:13px;line-height:1.8}
+#login-msg{color:var(--red);font-size:12px;margin-top:12px;min-height:18px;white-space:pre-line}
+
+/* アプリレイアウト */
+#app{display:none;height:100%;flex-direction:row}
+#app.show{display:flex}
+.sidebar{width:200px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.sb-logo{padding:18px 16px 14px;border-bottom:1px solid var(--border)}
+.sb-logo h1{font-size:13px;font-weight:700}
+.sb-logo p{font-size:10px;color:var(--text3);margin-top:2px}
+.sb-user{padding:10px 16px;border-bottom:1px solid var(--border)}
+.sb-user .label{font-size:10px;color:var(--text3)}
+.sb-user .name{font-size:13px;font-weight:600}
+nav.sb-nav{flex:1;padding:8px;overflow-y:auto}
+.nav-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:7px;cursor:pointer;color:var(--text2);font-size:13px;transition:all .12s;user-select:none;margin-bottom:1px}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:var(--accent);color:#fff}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;font-family:var(--mono)}
+.sb-bottom{padding:8px;border-top:1px solid var(--border)}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.page-header{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;flex-shrink:0}
+.page-header h2{font-size:16px;font-weight:700}
+.page-body{flex:1;overflow-y:auto;padding:18px 22px}
+.page{display:none;flex-direction:column;height:100%}
+.page.active{display:flex}
+
+/* ボタン */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;transition:all .12s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;pointer-events:none}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#4a7de0}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#2ebc7a}
+.btn-yellow{background:var(--yellow);color:#fff}.btn-yellow:hover{background:#e09518}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:#e0334a}
+.btn-purple{background:var(--purple);color:#fff}.btn-purple:hover{background:#9170e8}
+.btn-ghost{background:var(--bg3);color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
+
+/* カード・テーブル */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+.card-hd{padding:11px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+th{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;background:var(--bg3)}
+td{font-size:13px;color:var(--text2)}
+td:first-child{color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.015)}
+
+/* バッジ */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono)}
+.b-pending  {background:rgba(245,165,36,.15);color:var(--yellow)}
+.b-approved {background:rgba(61,214,140,.15);color:var(--green)}
+.b-rejected {background:rgba(245,69,90,.15); color:var(--red)}
+.b-cancelled{background:rgba(100,100,120,.15);color:var(--text3)}
+/* キャンセル行スタイル */
+tr.cancelled-row td{opacity:.45;text-decoration:line-through}
+tr.cancelled-row td:last-child{text-decoration:none;opacity:.6}
+
+/* フォーム */
+.fg{margin-bottom:12px}
+label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px}
+input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 12px;color:var(--text);font-family:var(--font);font-size:14px;transition:border-color .12s;-webkit-appearance:none;appearance:none}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,141,239,.12)}
+textarea{resize:vertical;min-height:72px}
+input[type=number]{-moz-appearance:textfield}
+
+/* モーダル */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px;backdrop-filter:blur(4px)}
+.modal-ov.hidden{display:none}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
+.modal-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg2);z-index:1}
+.modal-hd h3{font-size:15px;font-weight:700}
+.modal-cl{background:none;border:none;cursor:pointer;color:var(--text3);padding:4px 6px;border-radius:5px;font-size:16px;line-height:1;transition:color .12s}
+.modal-cl:hover{color:var(--text)}
+.modal-bd{padding:18px}
+.modal-ft{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:var(--bg2)}
+
+/* フィルターバー */
+.fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.fbar select,.fbar input{width:auto;flex:none}
+
+/* グリッド */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+/* シフト提出フォーム */
+.shift-row{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;position:relative}
+.shift-row-fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.shift-row .fg{margin-bottom:0}
+.shift-remove{position:absolute;top:8px;right:8px;background:rgba(245,69,90,.15);border:none;cursor:pointer;color:var(--red);padding:4px 8px;border-radius:5px;font-size:12px;line-height:1;transition:all .12s}
+.shift-remove:hover{background:var(--red);color:#fff}
+@media(max-width:480px){.shift-row-fields{grid-template-columns:1fr 1fr}}
+
+/* チェックボックス */
+.cb-col{width:40px;text-align:center}
+input[type=checkbox]{width:auto;padding:0;cursor:pointer;accent-color:var(--accent)}
+
+/* カレンダー */
+.cal-nav{display:flex;align-items:center;gap:8px}
+.cal-month-label{font-size:13px;font-weight:700;font-family:var(--mono);min-width:88px;text-align:center}
+.cal-grid-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;min-width:560px}
+.cal-dh{text-align:center;font-size:11px;font-weight:600;color:var(--text3);padding:5px 0}
+.cal-dh:nth-child(7n+6){color:#5b8def}
+.cal-dh:nth-child(7n){color:#f5455a}
+.cal-cell{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:5px;min-height:84px;overflow:hidden;min-width:0}
+.cal-cell.today{border-color:var(--accent)}
+.cal-cell.other{opacity:.4}
+.cal-cell.sat .cal-num{color:#5b8def}
+.cal-cell.sun .cal-num{color:#f5455a}
+.cal-num{font-size:11px;font-weight:700;margin-bottom:3px;font-family:var(--mono)}
+.cal-chip{font-size:10px;border-radius:4px;padding:3px 5px;margin-bottom:2px;overflow:hidden;line-height:1.5;border:1px solid transparent}
+/* pending は点線枠で区別 */
+.cal-chip.pending{border-style:dashed !important;opacity:.85}
+/* ブース別カラー（背景・文字） */
+.cal-chip.room-1{background:#ffe0eb;color:#c0305a;border-color:#f4a0bc}      /* 1 ピンク */
+.cal-chip.room-2{background:#d0f0ff;color:#1a6090;border-color:#80ccf0}      /* 2 水色 */
+.cal-chip.room-3{background:#ffe8cc;color:#a04800;border-color:#f0a860}      /* 3 オレンジ */
+.cal-chip.room-4{background:#ecdcff;color:#6020a0;border-color:#c090e8}      /* 4 紫 */
+.cal-chip.room-5{background:#fffacc;color:#806000;border-color:#e8d840}      /* 5 黄色 */
+.cal-chip.room-6{background:#ffd4d4;color:#a01010;border-color:#f08080}      /* 6 赤 */
+.cal-chip.room-7{background:#f4f4f4;color:#444444;border-color:#cccccc}      /* 7 白 */
+.cal-chip.room-home{background:#d4f4d4;color:#1a6030;border-color:#80cc80}   /* 在宅 緑 */
+.cal-chip.room-none{background:rgba(100,110,130,.15);color:var(--text2);border-color:var(--border)} /* 未割当 */
+.cal-memo-mark{cursor:pointer;font-size:9px;vertical-align:middle;margin-left:2px}
+
+/* 統計カード */
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px}
+.stat-val{font-size:24px;font-weight:700;font-family:var(--mono)}
+.stat-label{font-size:11px;color:var(--text3);margin-top:3px}
+
+/* アラート */
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;display:flex;gap:8px;align-items:flex-start}
+.al-info{background:rgba(91,141,239,.1);border:1px solid rgba(91,141,239,.3);color:#a0baff}
+.al-warn{background:rgba(245,165,36,.1);border:1px solid rgba(245,165,36,.3);color:var(--yellow)}
+.al-ok{background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);color:var(--green)}
+
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;margin:3px}
+
+/* 給料テーブル */
+.payroll-name{font-weight:600}
+.payroll-real{font-size:11px;color:var(--text3)}
+.pay-type-badge{font-size:10px;padding:1px 7px;border-radius:10px;font-weight:600}
+.pay-daily{background:rgba(167,139,250,.2);color:var(--purple)}
+.pay-weekly{background:rgba(91,141,239,.2);color:var(--accent)}
+.pay-normal{background:rgba(136,144,168,.2);color:var(--text2)}
+.pts-num{font-family:var(--mono);font-weight:600}
+.half1{color:var(--accent)}
+.half2{color:var(--green)}
+.total-row{color:var(--text);font-weight:600}
+
+/* メモポップアップ */
+#memo-popup{position:fixed;z-index:2000;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;max-width:240px;font-size:13px;line-height:1.7;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+#memo-popup .mp-name{font-weight:700;font-size:12px;color:var(--text2);margin-bottom:4px}
+#memo-popup .mp-text{color:var(--text)}
+#memo-popup .mp-close{position:absolute;top:6px;right:8px;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;background:none;border:none}
+
+/* トースト */
+#toast-wrap{position:fixed;top:20px;right:20px;z-index:9000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{padding:10px 16px;border-radius:9px;font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.4);animation:tin .2s ease;max-width:300px;pointer-events:auto}
+.t-ok{background:var(--green);color:#fff}
+.t-err{background:var(--red);color:#fff}
+.t-info{background:var(--accent);color:#fff}
+@keyframes tin{from{transform:translateX(20px);opacity:0}}
+
+/* モバイル */
+@media(max-width:700px){
+  .sidebar{display:none}
+  .page-body{padding:14px;padding-bottom:80px}
+  .page-header{padding:12px 14px}
+  .g2,.g3{grid-template-columns:1fr}
+  #mob-nav{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);display:flex;z-index:500;padding:6px 4px;padding-bottom:calc(6px + env(safe-area-inset-bottom));min-height:56px}
+  .mob-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px;border-radius:7px;cursor:pointer;color:var(--text3);font-size:10px;transition:all .12s;-webkit-tap-highlight-color:transparent}
+  .mob-item.active{color:var(--accent)}
+  #app{height:calc(100vh - 56px - env(safe-area-inset-bottom));margin-bottom:calc(56px + env(safe-area-inset-bottom))}
+  .btn-sm{padding:7px 12px}
+}
+@media(min-width:701px){#mob-nav{display:none}}
+/* 給料テーブル専用 */
+.pr-half1{background:rgba(91,141,239,.05)}
+.pr-half2{background:rgba(61,214,140,.05)}
+.pr-total{background:rgba(245,165,36,.05);font-weight:700}
+.pr-mark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;font-size:10px;font-weight:700;margin-right:4px;flex-shrink:0}
+.pr-mark.h1{background:rgba(91,141,239,.25);color:#5b8def}
+.pr-mark.h2{background:rgba(61,214,140,.25);color:#3dd68c}
+.pr-pts-input{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--text);font-family:var(--mono);font-size:13px;width:100px;text-align:right}
+.pr-pts-input:focus{outline:none;border-color:var(--accent)}
+.pr-num{font-family:var(--mono);font-size:13px}
+.pr-cast-name{font-weight:700;font-size:13px}
+.pr-real-name{font-size:12px;color:var(--text2)}
+/* 2行セルの罫線制御 */
+tr.pr-row-1 td{border-bottom:none !important}
+tr.pr-row-2 td{border-bottom:1px solid var(--border) !important}
+tr.pr-spacer{height:0;line-height:0}
+tr.pr-spacer td{padding:0;border:none !important;height:0}
+
+/* ブース別カレンダー */
+.booth-cal-table{border-collapse:separate;border-spacing:0;min-width:900px;width:100%}
+.booth-cal-table th{position:sticky;top:0;z-index:10;background:var(--bg2);border-bottom:2px solid var(--border);padding:8px 6px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;min-width:110px}
+.booth-cal-table th.date-col{min-width:70px;background:var(--bg2)}
+.booth-col-1{background:rgba(255,224,235,.06)} .booth-col-2{background:rgba(208,240,255,.06)}
+.booth-col-3{background:rgba(255,232,204,.06)} .booth-col-4{background:rgba(236,220,255,.06)}
+.booth-col-5{background:rgba(255,250,204,.06)} .booth-col-6{background:rgba(255,212,212,.06)}
+.booth-col-7{background:rgba(244,244,244,.06)} .booth-col-home{background:rgba(212,244,212,.06)}
+.booth-col-none{background:rgba(130,140,160,.04)}
+.booth-cal-table td{vertical-align:top;padding:4px;border-bottom:1px solid var(--border);font-size:11px}
+.booth-cal-table td.date-cell{text-align:center;font-weight:700;font-family:var(--mono);font-size:12px;color:var(--text2);white-space:nowrap;border-right:1px solid var(--border);background:var(--bg2)}
+.booth-cal-table td.date-cell.today{color:var(--accent)}
+.booth-cal-table td.date-cell.sat{color:#5b8def}
+.booth-cal-table td.date-cell.sun{color:#f5455a}
+.booth-chip{border-radius:5px;padding:4px 6px;margin-bottom:3px;font-size:11px;line-height:1.5;border:1px solid transparent;cursor:default}
+.booth-chip.pending{border-style:dashed !important;opacity:.85}
+.booth-chip.room-1{background:#ffe0eb;color:#c0305a;border-color:#f4a0bc}
+.booth-chip.room-2{background:#d0f0ff;color:#1a6090;border-color:#80ccf0}
+.booth-chip.room-3{background:#ffe8cc;color:#a04800;border-color:#f0a860}
+.booth-chip.room-4{background:#ecdcff;color:#6020a0;border-color:#c090e8}
+.booth-chip.room-5{background:#fffacc;color:#806000;border-color:#e8d840}
+.booth-chip.room-6{background:#ffd4d4;color:#a01010;border-color:#f08080}
+.booth-chip.room-7{background:#f4f4f4;color:#444444;border-color:#cccccc}
+.booth-chip.room-home{background:#d4f4d4;color:#1a6030;border-color:#80cc80}
+.booth-chip.room-none{background:rgba(100,110,130,.12);color:var(--text2);border-color:var(--border)}
+
+/* キャスト固定行カレンダー */
+.cast-cal{border-collapse:collapse;table-layout:fixed}
+.cast-cal th,.cast-cal td{border:1px solid var(--border);padding:0}
+/* ヘッダー行（キャスト名）は上部固定 */
+.cast-cal thead th{position:sticky;top:0;z-index:5;background:var(--bg2);font-size:11px;font-weight:700;white-space:nowrap;padding:6px 4px;text-align:center}
+.cast-cal thead th.cc-name-col{min-width:80px;max-width:80px;width:80px;position:sticky;top:0;left:0;z-index:6}
+.cast-cal thead th.cc-date-col{min-width:82px;width:82px}
+/* 行ラベル（キャスト名）は左固定 */
+.cast-cal .cc-cast-cell{position:sticky;left:0;z-index:3;background:var(--bg2);border-right:2px solid var(--border);padding:3px 4px;font-size:11px;font-weight:700;vertical-align:middle;text-align:center;min-width:80px;max-width:80px;width:80px}
+/* 日付セル */
+.cast-cal .cc-shift{padding:3px 4px;vertical-align:top;min-width:82px;width:82px}
+.cast-cal .cc-shift.today{background:rgba(91,141,239,.07)}
+.cast-cal .cc-shift.sat{background:rgba(91,141,239,.04)}
+.cast-cal .cc-shift.sun{background:rgba(245,69,90,.04)}
+.cast-cal .cc-empty{background:var(--bg)}
+.cc-chip{border-radius:4px;padding:3px 5px;font-size:10px;line-height:1.5;border:1px solid transparent;display:block;margin-bottom:1px}
+.cc-chip.pending{border-style:dashed !important;opacity:.85}
+.cc-chip.room-1{background:#ffe0eb;color:#c0305a;border-color:#f4a0bc}
+.cc-chip.room-2{background:#d0f0ff;color:#1a6090;border-color:#80ccf0}
+.cc-chip.room-3{background:#ffe8cc;color:#a04800;border-color:#f0a860}
+.cc-chip.room-4{background:#ecdcff;color:#6020a0;border-color:#c090e8}
+.cc-chip.room-5{background:#fffacc;color:#806000;border-color:#e8d840}
+.cc-chip.room-6{background:#ffd4d4;color:#a01010;border-color:#f08080}
+.cc-chip.room-7{background:#f4f4f4;color:#444444;border-color:#cccccc}
+.cc-chip.room-home{background:#d4f4d4;color:#1a6030;border-color:#80cc80}
+.cc-chip.room-none{background:rgba(100,110,130,.1);color:var(--text2);border-color:var(--border)}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spin"></div><span style="color:var(--text2);font-size:13px">読み込み中…</span></div>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none"><path d="M17 3C9.28 3 3 8.52 3 15.3c0 3.76 1.9 7.13 4.9 9.42L6.6 31l6.1-3.2c1.4.38 2.84.58 4.3.58 7.72 0 14-5.52 14-12.3S24.72 3 17 3z" fill="#fff"/></svg>
+    </div>
+    <h1>シフト管理</h1>
+    <!-- パスワードログインフォーム -->
+    <form id="pw-form" onsubmit="event.preventDefault();loginWithPw()" style="margin-top:20px;text-align:left">
+      <div class="fg" style="margin-bottom:16px">
+        <label>パスワード</label>
+        <input type="password" id="pw-password" name="password" placeholder="パスワードを入力"
+          autocomplete="current-password" style="font-size:16px">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">ログイン</button>
+    </form>
+    <div id="login-msg" style="margin-top:12px;font-size:13px;color:var(--red);min-height:18px;white-space:pre-line"></div>
+
+  </div>
+</div>
+
+<div id="app">
+  <aside class="sidebar">
+    <div class="sb-logo"><h1>📅 シフト管理</h1><p>Cast Shift Manager</p></div>
+    <div class="sb-user"><div class="label">ログイン中</div><div class="name" id="sb-name">-</div></div>
+    <nav class="sb-nav" id="sb-nav"></nav>
+    <div class="sb-bottom"><button class="btn btn-ghost btn-sm" style="width:100%" onclick="logout()">ログアウト</button></div>
+  </aside>
+
+  <div class="main">
+
+    <!-- キャスト：シフト提出 -->
+    <div class="page" id="page-submit">
+      <div class="page-header">
+        <h2>シフト提出</h2>
+        <button class="btn btn-primary" onclick="addShiftRow()">＋ 日程を追加</button>
+      </div>
+      <div class="page-body">
+        <div class="alert al-info">📢 出勤希望日・時間を入力して「まとめて提出」してください。提出後、管理者が承認します。</div>
+        <div id="shift-rows"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="submit-btn" onclick="submitShifts()">まとめて提出</button>
+          <button class="btn btn-ghost" onclick="clearShiftRows()">クリア</button>
+        </div>
+        <div style="margin-top:24px">
+          <div class="card">
+            <div class="card-hd">提出済みシフト</div>
+            <div class="tw"><table><thead><tr><th>日付・時間</th><th>ステータス</th><th>ルーム</th><th>メモ</th><th></th></tr></thead>
+            <tbody id="my-shifts-body"></tbody></table></div>
+          </div>
+        </div>
+        <div style="margin-top:20px">
+          <div class="card">
+            <div class="card-hd">
+              シフトカレンダー（確定済み）
+              <div class="cal-nav">
+                <button class="btn btn-ghost btn-sm" onclick="calPrev('my')">‹</button>
+                <span class="cal-month-label" id="my-cal-label"></span>
+                <button class="btn btn-ghost btn-sm" onclick="calNext('my')">›</button>
+              </div>
+            </div>
+            <div style="padding:12px"><div class="cal-grid-wrap"><div class="cal-grid" id="my-cal-grid"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- キャスト：給料確認 -->
+    <div class="page" id="page-my-payroll">
+      <div class="page-header">
+        <h2>給料確認</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="my-pay-month" onchange="loadMyCastPayroll()"></select>
+          <button class="btn btn-primary btn-sm" onclick="loadMyCastPayroll()">🔄 更新</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div id="my-payroll-content">
+          <div style="text-align:center;padding:40px;color:var(--text3)">月を選択してください</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者：シフト承認 -->
+    <div class="page" id="page-approval">
+      <div class="page-header">
+        <h2>シフト承認</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="openSpecialModal()">＋ 特別予定</button>
+          <button class="btn btn-green btn-sm" onclick="openAdminAddShiftModal()">＋ シフト追加</button>
+          <button class="btn btn-yellow btn-sm" id="bulk-approve-btn" onclick="openBulkApproveModal()" style="display:none">まとめて承認</button>
+          <button class="btn btn-primary btn-sm" onclick="loadApproval()">🔄 更新</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="fbar">
+          <select id="af-month" onchange="loadApproval()"></select>
+          <select id="af-status" onchange="loadApproval()">
+            <option value="">すべて</option><option value="pending" selected>未承認</option>
+            <option value="approved">承認済み</option><option value="rejected">却下</option>
+            <option value="cancelled">キャンセル</option>
+          </select>
+          <select id="af-cast" onchange="loadApproval()"><option value="">全キャスト</option></select>
+        </div>
+        <div id="pending-banner" class="alert al-warn" style="display:none"></div>
+        <div class="card">
+          <div class="card-hd">
+            <span>シフト一覧</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;font-size:12px;color:var(--text2)">
+              <input type="checkbox" id="check-all" onchange="toggleAllCheck(this.checked)"> 全選択
+            </label>
+          </div>
+          <div class="tw"><table>
+            <thead><tr><th class="cb-col"></th><th>日付・時間</th><th>キャスト</th><th>ルーム</th><th>ステータス</th><th>メモ</th><th>操作</th></tr></thead>
+            <tbody id="approval-body"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者：カレンダー -->
+    <div class="page" id="page-calendar">
+      <div class="page-header" style="flex-wrap:wrap;gap:8px">
+        <h2>シフトカレンダー</h2>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <!-- ビュー切替 -->
+          <div style="display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden">
+            <button id="cal-view-month" onclick="setCalView('month')"
+              style="border-radius:0;border:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;background:var(--accent);color:#fff;padding:6px 12px">月</button>
+            <button id="cal-view-cast" onclick="setCalView('cast')"
+              style="border-radius:0;border:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;background:var(--bg3);color:var(--text2);padding:6px 12px">キャスト別</button>
+          </div>
+          <div class="cal-nav" style="flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" id="cal-nav-prev" onclick="calNavPrev()">‹ 前</button>
+            <span class="cal-month-label" id="admin-cal-label"></span>
+            <button class="btn btn-ghost btn-sm" id="cal-nav-next" onclick="calNavNext()">次 ›</button>
+            <button class="btn btn-ghost btn-sm" id="cal-nav-today" onclick="calNavToday()">今週</button>
+          </div>
+          <!-- シフト操作ボタン -->
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="openSpecialModal()">＋ 特別予定</button>
+            <button class="btn btn-green btn-sm" onclick="openAdminAddShiftModal()">＋ シフト追加</button>
+          </div>
+        </div>
+      </div>
+      <div class="page-body">
+        <!-- 月カレンダー -->
+        <div id="cal-month-view">
+          <div class="cal-grid-wrap" style="padding-bottom:80px"><div class="cal-grid" id="admin-cal-grid"></div></div>
+        </div>
+        <!-- キャスト固定行ビュー -->
+        <div id="cal-cast-view" style="display:none">
+          <!-- 店舗タブ -->
+          <div id="shop-tabs" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)"></div>
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px">
+            <div id="cast-cal-wrap"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者：未提出者管理 -->
+    <div class="page" id="page-reminder">
+      <div class="page-header"><h2>未提出者管理</h2><button class="btn btn-primary btn-sm" onclick="loadReminder()">🔄 更新</button></div>
+      <div class="page-body">
+        <div class="g3" style="margin-bottom:16px">
+          <div class="stat-card"><div class="stat-val" id="st-unsub">-</div><div class="stat-label">未提出者（翌週）</div></div>
+          <div class="stat-card"><div class="stat-val" id="st-sub">-</div><div class="stat-label">提出済み（翌週）</div></div>
+          <div class="stat-card"><div class="stat-val" id="st-week" style="font-size:12px;margin-top:6px">-</div><div class="stat-label">対象期間</div></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-hd">未提出者 <button class="btn btn-yellow btn-sm" onclick="sendBulkReminder()">一括リマインダー</button></div>
+          <div id="unsub-list" style="padding:14px"></div>
+        </div>
+        <div class="card"><div class="card-hd">提出済み</div><div id="sub-list" style="padding:14px"></div></div>
+      </div>
+    </div>
+
+    <!-- 管理者：給料管理 -->
+    <div class="page" id="page-payroll">
+      <div class="page-header">
+        <h2>給料管理</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="pay-month" onchange="loadPayroll()"></select>
+          <button class="btn btn-primary btn-sm" onclick="loadPayroll()">🔄 更新</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="alert al-info" style="margin-bottom:14px">
+          💡 ポイント入力で給料自動計算　前半：1〜15日　後半：16〜末日
+        </div>
+        <div class="card">
+          <div class="tw">
+            <table id="payroll-table">
+              <thead>
+                <tr>
+                  <th style="min-width:80px">本名<br><span style="font-weight:400;color:var(--text3);font-size:11px">源氏名</span></th>
+                  <th style="min-width:52px">種別</th>
+                  <th style="min-width:52px;color:var(--text2)">バック率</th>
+                  <th style="min-width:110px;color:#5b8def">🔵前半 pt<br><span style="font-weight:400;font-size:10px;color:var(--text3)">（入力のみ）</span></th>
+                  <th style="min-width:110px;color:#3dd68c">🟢後半 pt<br><span style="font-weight:400;font-size:10px;color:var(--text3)">（入力のみ）</span></th>
+                  <th style="min-width:80px;color:var(--yellow)">合計pt</th>
+                  <th style="min-width:90px;color:var(--red)">日当金額<br><span style="font-weight:400;font-size:10px;color:var(--text3)">前半 / 後半</span></th>
+                  <th style="min-width:90px;color:#5b8def">前半給料<br><span style="font-weight:400;font-size:10px;color:var(--text3)">（日当控除後）</span></th>
+                  <th style="min-width:90px;color:#3dd68c">後半給料<br><span style="font-weight:400;font-size:10px;color:var(--text3)">（日当控除後）</span></th>
+                  <th style="min-width:100px;background:rgba(245,165,36,.06);color:var(--yellow)">給料合計</th>
+                  <th style="min-width:110px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="payroll-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者：キャスト管理 -->
+    <div class="page" id="page-casts">
+      <div class="page-header"><h2>キャスト管理</h2><button class="btn btn-primary" onclick="openCastModal()">＋ 登録</button></div>
+      <div class="page-body">
+        <div class="card">
+          <div class="tw"><table>
+            <thead><tr><th>順</th><th>源氏名</th><th>本名</th><th>店舗</th><th>給料種別</th><th>ログインID</th><th>パスワード</th><th>バック率</th><th>給料表示</th><th>紹介スタッフ</th><th>操作</th></tr></thead>
+            <tbody id="cast-body"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者：スタッフマスタ -->
+    <div class="page" id="page-staff">
+      <div class="page-header"><h2>スタッフマスタ</h2><button class="btn btn-primary" onclick="openStaffModal()">＋ 登録</button></div>
+      <div class="page-body">
+        <div class="card">
+          <div class="tw"><table>
+            <thead><tr><th>名前</th><th>バック率</th><th>時給</th><th>操作</th></tr></thead>
+            <tbody id="staff-body"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者：スタッフ給料 -->
+    <div class="page" id="page-staff-pay">
+      <div class="page-header">
+        <h2>スタッフ給料</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="sp-pay-month" onchange="loadStaffPayroll()"></select>
+          <button class="btn btn-primary btn-sm" onclick="loadStaffPayroll()">🔄 更新</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="card">
+          <div class="tw"><table>
+            <thead><tr>
+              <th>名前</th><th>紹介人数</th><th>キャスト合計pt</th>
+              <th>キャスト給料</th><th>時給給料</th><th>給料合計</th><th>操作</th>
+            </tr></thead>
+            <tbody id="staff-pay-body"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者：店舗マスタ -->
+    <div class="page" id="page-shops">
+      <div class="page-header"><h2>店舗マスタ</h2><button class="btn btn-primary" onclick="openShopModal()">＋ 追加</button></div>
+      <div class="page-body">
+        <div class="card"><div class="tw"><table>
+          <thead><tr><th>ID</th><th>店舗名</th><th>表示順</th><th>有効</th><th>操作</th></tr></thead>
+          <tbody id="shop-body"></tbody>
+        </table></div></div>
+      </div>
+    </div>
+
+    <!-- 管理者：ルームマスタ -->
+    <div class="page" id="page-rooms">
+      <div class="page-header"><h2>ルームマスタ</h2><button class="btn btn-primary" onclick="openRoomModal()">＋ 追加</button></div>
+      <div class="page-body">
+        <div class="card">
+          <div class="tw"><table>
+            <thead><tr><th>ID</th><th>ルーム名</th><th>店舗</th><th>説明</th><th>表示順</th><th>有効</th><th>操作</th></tr></thead>
+            <tbody id="room-body"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<nav id="mob-nav"></nav>
+
+<!-- モーダル：承認 -->
+<div class="modal-ov hidden" id="m-approve">
+  <div class="modal">
+    <div class="modal-hd"><h3>シフト承認</h3><button class="modal-cl" onclick="closeModal('m-approve')">✕</button></div>
+    <div class="modal-bd">
+      <div id="approve-info" style="margin-bottom:12px;font-size:13px;line-height:2;color:var(--text2)"></div>
+      <div class="fg"><label>ルーム（任意）</label><select id="approve-room" onchange="checkConflict()"><option value="">未割当</option></select></div>
+      <div id="conflict-warn" class="alert al-warn" style="display:none">⚠ 同時間帯に同じルームが使用されています</div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-approve')">キャンセル</button><button class="btn btn-green" onclick="confirmApprove()">承認する</button></div>
+  </div>
+</div>
+
+<!-- モーダル：一括承認 -->
+<div class="modal-ov hidden" id="m-bulk">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-hd"><h3>まとめて承認</h3><button class="modal-cl" onclick="closeModal('m-bulk')">✕</button></div>
+    <div class="modal-bd">
+      <div class="alert al-info" style="margin-bottom:12px">ルームを設定して承認します。未設定は「未割当」になります。</div>
+      <div id="bulk-conflict-warn" class="alert al-warn" style="display:none;margin-bottom:12px"></div>
+      <div id="bulk-list"></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-bulk')">キャンセル</button><button class="btn btn-green" onclick="confirmBulkApprove()">すべて承認する</button></div>
+  </div>
+</div>
+
+<!-- モーダル：却下 -->
+<div class="modal-ov hidden" id="m-reject">
+  <div class="modal">
+    <div class="modal-hd"><h3>シフト却下</h3><button class="modal-cl" onclick="closeModal('m-reject')">✕</button></div>
+    <div class="modal-bd">
+      <div id="reject-info" style="margin-bottom:12px;font-size:13px;color:var(--text2)"></div>
+      <div class="fg"><label>却下理由（LINE通知に含まれます）</label><textarea id="reject-reason" placeholder="理由を入力…"></textarea></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-reject')">キャンセル</button><button class="btn btn-red" onclick="confirmReject()">却下する</button></div>
+  </div>
+</div>
+
+<!-- モーダル：編集 -->
+<!-- カレンダーチップタップ時の操作選択ポップアップ -->
+<div class="modal-ov hidden" id="m-cal-action">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-hd"><h3>シフト操作</h3><button class="modal-cl" onclick="closeModal('m-cal-action')">✕</button></div>
+    <div class="modal-bd">
+      <div id="cal-action-info" style="margin-bottom:16px;padding:12px;background:var(--bg3);border-radius:8px;font-size:13px;line-height:1.7"></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-green" id="cal-action-approve-btn" onclick="calActionApprove()" style="display:none">✅ シフトを承認</button>
+        <button class="btn btn-primary" onclick="calActionEdit()">✏️ シフトを変更</button>
+        <button class="btn" style="background:rgba(245,69,90,.15);color:var(--red);border:1px solid rgba(245,69,90,.3)" onclick="calActionDelete()">🗑️ シフトを削除</button>
+      </div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-cal-action')">キャンセル</button></div>
+  </div>
+</div>
+
+<div class="modal-ov hidden" id="m-edit">
+  <div class="modal">
+    <div class="modal-hd"><h3>シフト変更</h3><button class="modal-cl" onclick="closeModal('m-edit')">✕</button></div>
+    <div class="modal-bd">
+      <div class="alert al-warn" style="margin-bottom:12px">⚠ 変更するとキャストにLINEで通知が送られます</div>
+      <div class="fg"><label>日付</label><input type="date" id="edit-date"></div>
+      <div class="g2"><div class="fg"><label>開始時間</label><input type="text" id="edit-start" placeholder="10:00" maxlength="5" style="font-family:var(--mono)" oninput="fmtTimeInput(this)"></div><div class="fg"><label>終了時間</label><input type="text" id="edit-end" placeholder="26:00" maxlength="5" style="font-family:var(--mono)" oninput="fmtTimeInput(this)"></div></div>
+      <div class="fg"><label>ルーム</label><select id="edit-room"><option value="">未割当</option></select></div>
+      <div class="fg"><label>メモ</label><input type="text" id="edit-memo" placeholder="備考など"></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-edit')">キャンセル</button><button class="btn btn-primary" onclick="confirmEdit()">保存して通知</button></div>
+  </div>
+</div>
+
+<!-- モーダル：特別予定 -->
+<div class="modal-ov hidden" id="m-special">
+  <div class="modal">
+    <div class="modal-hd"><h3>特別予定登録</h3><button class="modal-cl" onclick="closeModal('m-special')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>名称（キャスト名でルームが絞り込まれます）*</label><input type="text" id="sp-name" placeholder="キャスト名" oninput="populateRoomSelect('sp-room','',getCastShop(this.value.trim()))"></div>
+      <div class="fg"><label>日付 *</label><input type="date" id="sp-date"></div>
+      <div class="g2"><div class="fg"><label>開始時間</label><input type="text" id="sp-start" value="10:00" placeholder="10:00" maxlength="5" style="font-family:var(--mono)" oninput="fmtTimeInput(this)"></div><div class="fg"><label>終了時間</label><input type="text" id="sp-end" value="19:00" placeholder="26:00" maxlength="5" style="font-family:var(--mono)" oninput="fmtTimeInput(this)"></div></div>
+      <div class="fg"><label>ルーム</label><select id="sp-room"><option value="">未割当</option></select></div>
+      <div class="fg"><label>メモ</label><input type="text" id="sp-memo"></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-special')">キャンセル</button><button class="btn btn-green" onclick="confirmSpecial()">承認済みで登録</button></div>
+  </div>
+</div>
+
+<!-- モーダル：管理者シフト追加 -->
+<div class="modal-ov hidden" id="m-admin-shift">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hd"><h3>シフト追加（管理者）</h3><button class="modal-cl" onclick="closeModal('m-admin-shift')">✕</button></div>
+    <div class="modal-bd">
+      <div class="alert al-info" style="margin-bottom:14px">キャストを選択してシフトを追加します。承認済みとして登録され、キャストにLINE通知が送られます。</div>
+      <div class="fg">
+        <label>キャスト *</label>
+        <select id="as-cast" onchange="populateRoomSelect('as-room','',getCastShop(this.value))">
+          <option value="">選択してください</option>
+        </select>
+      </div>
+      <div id="as-rows"></div>
+      <button class="btn btn-ghost btn-sm" onclick="addAdminShiftRow()" style="margin-bottom:12px">＋ 日程を追加</button>
+      <div class="fg"><label>ルーム（全日程共通・任意）</label><select id="as-room"><option value="">未割当</option></select></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeModal('m-admin-shift')">キャンセル</button>
+      <button class="btn btn-green" onclick="confirmAdminAddShift()">シフト追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- モーダル：キャスト登録 -->
+<div class="modal-ov hidden" id="m-cast">
+  <div class="modal">
+    <div class="modal-hd"><h3 id="cast-modal-title">キャスト登録</h3><button class="modal-cl" onclick="closeModal('m-cast')">✕</button></div>
+    <div class="modal-bd">
+      <div class="g2">
+        <div class="fg"><label>源氏名 *</label><input type="text" id="cast-name" placeholder="さくら"></div>
+        <div class="fg"><label>本名 *</label><input type="text" id="cast-realname" placeholder="山田花子"></div>
+      </div>
+      <div class="g2">
+        <div class="fg"><label>ログインID</label><input type="text" id="cast-loginid" placeholder="sakura01"></div>
+        <div class="fg"><label>パスワード</label><input type="text" id="cast-password" placeholder="pass1234"></div>
+      </div>
+      <div class="g2">
+        <div class="fg"><label>給料種別</label>
+          <select id="cast-paytype">
+            <option value="normal">通常</option>
+            <option value="daily">日払い</option>
+            <option value="weekly">週払い</option>
+          </select>
+        </div>
+        <div class="fg"><label>バック率（%）</label>
+          <input type="number" id="cast-backrate" value="30" min="0" max="100" step="1" placeholder="30">
+        </div>
+      </div>
+      <div class="fg">
+        <label>給料表示</label>
+        <select id="cast-showpayroll">
+          <option value="true">表示する</option>
+          <option value="false">表示しない</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>紹介スタッフ</label>
+        <select id="cast-referrer">
+          <option value="">なし</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>並び順（小さい数字が先頭）</label>
+        <input type="number" id="cast-sort-order" min="1" max="999" step="1" placeholder="例: 1">
+      </div>
+      <div class="fg">
+        <label>店舗</label>
+        <select id="cast-shop"><option value="">未設定</option></select>
+      </div>
+      <div class="fg" style="display:none"><label>LINE userId</label><input type="text" id="cast-uid" placeholder="U…"></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-cast')">キャンセル</button><button class="btn btn-primary" onclick="confirmCast()">保存</button></div>
+  </div>
+</div>
+
+<!-- モーダル：スタッフ登録 -->
+<div class="modal-ov hidden" id="m-staff">
+  <div class="modal">
+    <div class="modal-hd"><h3 id="staff-modal-title">スタッフ登録</h3><button class="modal-cl" onclick="closeModal('m-staff')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>名前 *</label><input type="text" id="st-name" placeholder="田中太郎"></div>
+      <div class="g2">
+        <div class="fg"><label>バック率（%）</label><input type="number" id="st-backrate" value="10" min="0" max="100" step="1"></div>
+        <div class="fg"><label>時給（円）</label><input type="number" id="st-hourly" value="0" min="0"></div>
+      </div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-staff')">キャンセル</button><button class="btn btn-primary" onclick="confirmStaff()">保存</button></div>
+  </div>
+</div>
+
+<!-- モーダル：スタッフ日当入力 -->
+<div class="modal-ov hidden" id="m-staff-daily">
+  <div class="modal">
+    <div class="modal-hd"><h3>スタッフ日当入力</h3><button class="modal-cl" onclick="closeModal('m-staff-daily')">✕</button></div>
+    <div class="modal-bd">
+      <div id="sdp-info" style="margin-bottom:12px;padding:10px;background:var(--bg3);border-radius:8px;font-size:13px"></div>
+      <div class="fg"><label>日付 *</label><input type="date" id="sdp-date"></div>
+      <div class="fg"><label>時間（h）*</label><input type="number" id="sdp-hours" placeholder="8" min="0" step="0.5" oninput="calcStaffDaily()"></div>
+      <div id="sdp-amount-disp" style="padding:10px 14px;background:var(--bg3);border-radius:8px;margin-bottom:12px;display:none">
+        <div style="font-size:13px;color:var(--text2)">時給給料：<span id="sdp-amount" style="font-size:20px;font-weight:700;color:var(--green);font-family:var(--mono)">0</span> 円</div>
+      </div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-staff-daily')">キャンセル</button><button class="btn btn-green" onclick="confirmStaffDaily()">確定</button></div>
+  </div>
+</div>
+
+<!-- モーダル：スタッフ明細 -->
+<div class="modal-ov hidden" id="m-staff-detail">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-hd"><h3 id="staff-detail-title">明細</h3><button class="modal-cl" onclick="closeModal('m-staff-detail')">✕</button></div>
+    <div class="modal-bd" style="padding:0">
+      <div id="staff-detail-body" style="padding:16px"></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-staff-detail')">閉じる</button></div>
+  </div>
+</div>
+
+<!-- モーダル：店舗 -->
+<div class="modal-ov hidden" id="m-shop">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-hd"><h3 id="shop-modal-title">店舗追加</h3><button class="modal-cl" onclick="closeModal('m-shop')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>店舗名 *</label><input type="text" id="sh-name" placeholder="新宿店"></div>
+      <div class="g2">
+        <div class="fg"><label>表示順</label><input type="number" id="sh-order" value="1" min="1"></div>
+        <div class="fg"><label>有効</label>
+          <select id="sh-active"><option value="true">有効</option><option value="false">無効</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeModal('m-shop')">キャンセル</button>
+      <button class="btn btn-primary" onclick="confirmShop()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- モーダル：ルーム -->
+<div class="modal-ov hidden" id="m-room">
+  <div class="modal">
+    <div class="modal-hd"><h3 id="rm-modal-title">ルーム追加</h3><button class="modal-cl" onclick="closeModal('m-room')">✕</button></div>
+    <div class="modal-bd">
+      <div class="fg"><label>ルーム名 *</label><input type="text" id="rm-name" placeholder="Aルーム"></div>
+      <div class="fg"><label>店舗</label><select id="rm-shop"><option value="">未設定</option></select></div>
+      <div class="fg"><label>説明</label><input type="text" id="rm-desc"></div>
+      <div class="g2">
+        <div class="fg"><label>表示順</label><input type="number" id="rm-order" value="1"></div>
+        <div class="fg"><label>有効</label><select id="rm-active"><option value="true">有効</option><option value="false">無効</option></select></div>
+      </div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-room')">キャンセル</button><button class="btn btn-primary" onclick="confirmRoom()">保存</button></div>
+  </div>
+</div>
+
+<!-- モーダル：日当入力 -->
+<div class="modal-ov hidden" id="m-dailypay">
+  <div class="modal">
+    <div class="modal-hd"><h3>日当入力</h3><button class="modal-cl" onclick="closeModal('m-dailypay')">✕</button></div>
+    <div class="modal-bd">
+      <div id="dp-cast-info" style="margin-bottom:12px;padding:10px;background:var(--bg3);border-radius:8px;font-size:13px"></div>
+      <div class="fg"><label>日付 *</label><input type="date" id="dp-date"></div>
+      <div class="fg"><label>ポイント *</label><input type="number" id="dp-points" placeholder="0" min="0" oninput="calcDailyAmount()"></div>
+      <div id="dp-amount-disp" style="padding:12px 16px;background:var(--bg3);border-radius:8px;margin-bottom:12px;display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:12px;color:var(--text3)" id="dp-half"></span>
+          <span style="font-size:11px;color:var(--text3)" id="dp-rate-disp"></span>
+        </div>
+        <div style="font-size:13px;color:var(--text2)">
+          給料金額：<span id="dp-amount" style="font-size:22px;font-weight:700;color:var(--green);font-family:var(--mono)">0</span> 円
+        </div>
+      </div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-dailypay')">キャンセル</button><button class="btn btn-green" onclick="confirmDailyPay()">日当を確定</button></div>
+  </div>
+</div>
+
+<!-- モーダル：日当履歴 -->
+<div class="modal-ov hidden" id="m-dailyhist">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-hd"><h3 id="dailyhist-title">日当履歴</h3><button class="modal-cl" onclick="closeModal('m-dailyhist')">✕</button></div>
+    <div class="modal-bd" style="padding:0">
+      <div class="tw"><table>
+        <thead><tr><th>日付</th><th>前後半</th><th>ポイント</th><th>金額</th><th>操作</th></tr></thead>
+        <tbody id="dailyhist-body"></tbody>
+      </table></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-dailyhist')">閉じる</button></div>
+  </div>
+</div>
+
+<!-- メモポップアップ -->
+<div id="memo-popup" style="display:none">
+  <button class="mp-close" onclick="closeMemoPopup()">✕</button>
+  <div class="mp-name" id="memo-popup-name"></div>
+  <div class="mp-text" id="memo-popup-text"></div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script>
+'use strict';
+// ── Supabase 設定 ─────────────────────────────────
+const SUPABASE_URL = 'https://ikzctvohinssktfgspny.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlremN0dm9oaW5zc2t0ZmdzcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTEyODMsImV4cCI6MjA5NDI2NzI4M30.xcrT6Rt2_AUpUnBHC4xkEFefUsIfYdKqsCsyqXpa8yI';
+const GAS_NOTIFY_URL = 'https://script.google.com/macros/s/AKfycbwZdtgbE6OjbHfw1rjnuuJE2aTwfkLMa4pGcb3aobn3rhJBIbrFLSD-6-2wunu1sv0r0A/exec';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── Supabase ヘルパー ───────────────────────────
+async function sbSelect(table, opts={}) {
+  let q = sb.from(table).select(opts.select||'*');
+  if(opts.eq)     Object.entries(opts.eq).forEach(([k,v])=>{ q=q.eq(k,v); });
+  if(opts.in)     Object.entries(opts.in).forEach(([k,v])=>{ q=q.in(k,v); });
+  if(opts.gte)    Object.entries(opts.gte).forEach(([k,v])=>{ q=q.gte(k,v); });
+  if(opts.order)  q=q.order(opts.order, {ascending: opts.asc!==false});
+  if(opts.limit)  q=q.limit(opts.limit);
+  const {data,error} = await q;
+  if(error) throw new Error(error.message);
+  return data||[];
+}
+async function sbInsert(table, row) {
+  const {error} = await sb.from(table).insert(row);
+  if(error) throw new Error(error.message);
+}
+async function sbUpdate(table, row, match) {
+  let q = sb.from(table).update(row);
+  Object.entries(match).forEach(([k,v])=>{ q=q.eq(k,v); });
+  const {error} = await q;
+  if(error) throw new Error(error.message);
+}
+async function sbDelete(table, match) {
+  let q = sb.from(table).delete();
+  Object.entries(match).forEach(([k,v])=>{ q=q.eq(k,v); });
+  const {error} = await q;
+  if(error) throw new Error(error.message);
+}
+async function sbUpsert(table, row, conflict) {
+  const {error} = await sb.from(table).upsert(row, {onConflict:conflict});
+  if(error) throw new Error(error.message);
+}
+
+// LINE通知をGAS経由で送信（fire-and-forget：レスポンスを待たない）
+async function notifyLine(userId, message) {
+  if(!userId||!message) return;
+  try{
+    const url = GAS_NOTIFY_URL + '?action=notifyLine&params='+encodeURIComponent(JSON.stringify({userId,message}));
+    fetch(url, {redirect:'follow'}).catch(e => console.log('LINE通知エラー:', e));  // 待たない
+  }catch(e){ console.log('LINE通知エラー:', e); }
+}
+
+// ── 状態 ──────────────────────────────────
+const S = {
+  castName:'', isAdmin:false,
+  casts:[], rooms:[],
+  approvedShifts:[], pendingShifts:[],
+  currentShifts:[],
+  approveTarget:null, rejectTarget:null, editTarget:null,
+  roomTarget:null, castTarget:null,
+  checkedRows:new Set(),
+  calMonth:{ admin:new Date(), my:new Date() },
+  calWeekBase: null,  // キャスト別ビューの週起点（月曜日）
+  dpTarget:null,
+  payrollData:[],
+  dpPoints:{},
+  backRates:{},
+  dpAmounts:{},
+  staffs:[], shops:[],
+  showPayroll:false,  // {cid: {amt1, amt2}} 日当金額キャッシュ
+};
+async function apiGet(action, params={}) {
+  return await sbAction(action, params);
+}
+
+// ── トースト ──────────────────────────────
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = 'toast t-'+(type==='success'?'ok':type==='error'?'err':'info');
+  el.textContent = msg;
+  document.getElementById('toast-wrap').appendChild(el);
+  setTimeout(()=>el.remove(), 3500);
+}
+
+// ── Supabase アクション ─────────────────────────
+async function sbAction(action, params={}) {
+  switch(action) {
+
+  // ── 初期データ ──────────────────────────────
+  case 'getInitialData': {
+    const today = new Date(); today.setDate(today.getDate()-90);
+    const cutoff = today.toISOString().slice(0,10);
+    const [casts, shops, rooms, approved, pending] = await Promise.all([
+      sbSelect('casts', {order:'sort_order', asc:true}),
+      sbSelect('shops', {order:'display_order'}),
+      sbSelect('rooms', {order:'display_order'}),
+      sbSelect('shifts', {eq:{status:'approved'}, gte:{date: cutoff}, order:'date'}),
+      sbSelect('shifts', {eq:{status:'pending'}, order:'date'}),
+    ]);
+    return {
+      casts:          casts.map(sbCastFmt),
+      shops:          shops.map(sbShopFmt),
+      rooms:          rooms.map(sbRoomFmt),
+      approvedShifts: approved.map(sbShiftFmt),
+      pendingShifts:  pending.map(sbShiftFmt),
+    };
+  }
+
+  // ── キャスト ────────────────────────────────
+  case 'getCasts': {
+    const rows = await sbSelect('casts', {order:'sort_order', asc:true});
+    return rows.map(sbCastFmt);
+  }
+  case 'saveCast': {
+    const p = params;
+    const row = {
+      name:p.name, real_name:p.realName||'', user_id:p.userId||'',
+      login_id:p.loginId||'', password:p.password||'',
+      pay_type:p.payType||'normal', back_rate:p.backRate??0.3,
+      show_payroll:p.showPayroll!==false,
+      referrer:p.referrer||'', sort_order:p.sortOrder??9999, shop:p.shop||''
+    };
+    const exist = await sbSelect('casts', {eq:{name:p.name}});
+    if(exist.length) {
+      await sbUpdate('casts', row, {name:p.name});
+    } else {
+      await sbInsert('casts', {...row, created_at: new Date().toISOString()});
+    }
+    return {ok:true};
+  }
+  case 'deleteCast': {
+    await sbDelete('casts', {name:params.name});
+    return {ok:true};
+  }
+  case 'loginWithPassword': {
+    const rows = await sbSelect('casts', {eq:{password:params.password}});
+    if(!rows.length) return {ok:false, error:'パスワードが違います'};
+    return {ok:true, name:rows[0].name};
+  }
+  case 'verifyTokenAction': {
+    const rows = await sbSelect('tokens', {eq:{token:params.token}});
+    if(!rows.length) return {ok:false, error:'無効なトークンです'};
+    if(Date.now() > rows[0].expires_at) return {ok:false, error:'有効期限切れです。再度「ログイン」と送信してください。'};
+    return {ok:true, name:rows[0].name};
+  }
+
+  // ── シフト ──────────────────────────────────
+  case 'getShifts': {
+    const opts = {};
+    if(params.status) opts.eq = {...(opts.eq||{}), status:params.status};
+    if(params.therapist) opts.eq = {...(opts.eq||{}), therapist:params.therapist};
+    opts.order = 'date'; opts.asc = true;
+    let rows = await sbSelect('shifts', opts);
+    if(params.month) {
+      const m = params.month.replace('-','/');
+      rows = rows.filter(r => (r.date||'').startsWith(m.slice(0,7).replace('/','-')));
+    }
+    return rows.map(sbShiftFmt);
+  }
+  case 'submitShiftBulk': {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const items = (params.items||[]).filter(i => new Date(i.date+'T00:00:00') >= today);
+    if(!items.length) return {ok:false, error:'有効な日付がありません'};
+    await sbInsert('shifts', items.map(i=>({
+      therapist:params.castName, date:i.date,
+      start_time:i.startTime, end_time:i.endTime,
+      status:'pending', memo:i.memo||''
+    })));
+    return {ok:true, count:items.length};
+  }
+  case 'approveShift': {
+    const upd = {status:'approved', approved_at:new Date().toISOString()};
+    if(params.roomId   !== undefined) upd.room_id   = params.roomId||'';
+    if(params.roomName !== undefined) upd.room_name = params.roomName||'';
+    if(params.memo     !== undefined) upd.memo      = params.memo||'';
+    await sbUpdate('shifts', upd, {id:params.row});
+    return {ok:true};
+  }
+  case 'approveBulk': {
+    for(const item of (params.rows||[])) {
+      const upd = {status:'approved', approved_at:new Date().toISOString(),
+                   room_id:item.roomId||'', room_name:item.roomName||''};
+      await sbUpdate('shifts', upd, {id:item.row});
+
+    }
+    return {ok:true, count:(params.rows||[]).length};
+  }
+  case 'rejectShift': {
+    await sbUpdate('shifts', {status:'rejected', memo:params.reason||''}, {id:params.row});
+    const shift = (await sbSelect('shifts', {eq:{id:params.row}}))[0];
+    if(shift) {
+      const cast = (await sbSelect('casts', {eq:{name:shift.therapist}}))[0];
+      if(cast && cast.user_id) {
+        await notifyLine(cast.user_id, '【シフト却下】\n'+shift.date+' '+shift.start_time+'〜'+shift.end_time+'\nご希望の日程では調整できませんでした。\n別の日程をご提出ください。');
+      }
+    }
+    return {ok:true};
+  }
+  case 'cancelShift': {
+    const rows2 = await sbSelect('shifts', {eq:{id:params.row}});
+    if(!rows2.length || rows2[0].status !== 'pending') return {ok:false, error:'未承認シフトのみキャンセルできます'};
+    await sbUpdate('shifts', {status:'cancelled'}, {id:params.row});
+    return {ok:true};
+  }
+  case 'updateShift': {
+    const upd2 = {};
+    if(params.date)      upd2.date       = params.date;
+    if(params.startTime) upd2.start_time = params.startTime;
+    if(params.endTime)   upd2.end_time   = params.endTime;
+    if(params.roomId   !== undefined) upd2.room_id   = params.roomId||'';
+    if(params.roomName !== undefined) upd2.room_name = params.roomName||'';
+    if(params.memo     !== undefined) upd2.memo      = params.memo||'';
+    await sbUpdate('shifts', upd2, {id:params.row});
+    return {ok:true};
+  }
+  case 'deleteShift': {
+    await sbDelete('shifts', {id:params.row});
+    return {ok:true};
+  }
+  case 'addSpecialShift': {
+    await sbInsert('shifts', {
+      therapist:params.therapist, date:params.date,
+      start_time:params.startTime, end_time:params.endTime,
+      status:'approved', approved_at:new Date().toISOString(),
+      memo:params.memo||'', room_id:params.roomId||'', room_name:params.roomName||''
+    });
+    return {ok:true};
+  }
+  case 'adminAddShiftBulk': {
+    await sbInsert('shifts', (params.items||[]).map(i=>({
+      therapist:params.castName, date:i.date,
+      start_time:i.startTime, end_time:i.endTime,
+      status:'approved', approved_at:new Date().toISOString(),
+      memo:i.memo||'', room_id:params.roomId||'', room_name:params.roomName||''
+    })));
+    // LINE通知
+    const cast3 = (await sbSelect('casts', {eq:{name:params.castName}}))[0];
+    if(cast3 && cast3.user_id) {
+      const lines2 = (params.items||[]).map(i=>i.date+' '+i.startTime+'〜'+i.endTime+(i.memo?'['+i.memo+']':'')).join('\n');
+      await notifyLine(cast3.user_id, '【シフト確定✅】\n管理者がシフトを追加しました。\n'+lines2);
+    }
+    return {ok:true, count:(params.items||[]).length};
+  }
+
+  // ── 未提出者 ────────────────────────────────
+  case 'getUnsubmittedCasts': {
+    const nextMon = new Date(); nextMon.setDate(nextMon.getDate() + (8 - nextMon.getDay())%7 || 7);
+    const nextSun = new Date(nextMon); nextSun.setDate(nextMon.getDate()+6);
+    const from = nextMon.toISOString().slice(0,10);
+    const to   = nextSun.toISOString().slice(0,10);
+    const {data:submittedData} = await sb.from('shifts').select('therapist').gte('date',from).lte('date',to).in('status',['pending','approved']);
+    const submittedSet = new Set((submittedData||[]).map(s=>s.therapist));
+    const allCasts = await sbSelect('casts', {order:'sort_order'});
+    const castNames = allCasts.filter(c=>c.name&&c.name!=='管理者').map(c=>c.name);
+    const unsubmitted = allCasts.filter(c=>c.name&&c.name!=='管理者'&&!submittedSet.has(c.name)).map(c=>({name:c.name,userId:c.user_id||''}));
+    const submitted   = castNames.filter(n=>submittedSet.has(n));
+    const weekLabel   = (nextMon.getMonth()+1)+'/'+nextMon.getDate()+'〜'+(nextSun.getMonth()+1)+'/'+nextSun.getDate();
+    return {unsubmitted, submitted, from, to, weekLabel};
+  }
+  case 'sendLineMessage': {
+    if(params.userId) await notifyLine(params.userId, params.message);
+    return {ok:true};
+  }
+
+  // ── 給料 ────────────────────────────────────
+  case 'getPayroll': {
+    const month = params.month||'';
+    const [pts, casts2, dailys] = await Promise.all([
+      sbSelect('points', {eq:{month:month.replace('/','-')}}),
+      sbSelect('casts',  {order:'sort_order'}),
+      sbSelect('daily_pays'),
+    ]);
+    const ptMap = {};
+    pts.forEach(p=>{ ptMap[p.cast_name]={first_half:p.first_half||0, second_half:p.second_half||0}; });
+    return casts2.filter(c=>c.name&&c.name!=='管理者').map(c=>{
+      const pt  = ptMap[c.name]||{first_half:0,second_half:0};
+      const dp  = dailys.filter(d=>d.cast_name===c.name && (d.date||'').startsWith(month.slice(0,7).replace('/','-')));
+      const dpFirst  = dp.filter(d=>d.half==='前半').reduce((s,d)=>s+(d.amount||0),0);
+      const dpSecond = dp.filter(d=>d.half==='後半').reduce((s,d)=>s+(d.amount||0),0);
+      const rate     = c.back_rate||0.3;
+      return {name:c.name, realName:c.real_name||'', backRate:rate,
+              savedPts1:pt.first_half, savedPts2:pt.second_half,
+              dpPts1:0, dpPts2:0,
+              dpFirst, dpSecond, dpTotal:dpFirst+dpSecond};
+    });
+  }
+  case 'savePayrollPoints': {
+    const month = (params.month||'').replace('/','-');
+    await sbUpsert('points', {month, cast_name:params.castName, first_half:params.pts1||params.firstPts||0, second_half:params.pts2||params.secondPts||0, updated_at:new Date().toISOString()}, 'month,cast_name');
+    return {ok:true};
+  }
+  case 'addDailyPay': {
+    const cast4 = (await sbSelect('casts', {eq:{name:params.castName}}))[0];
+    const rate  = cast4?.back_rate||0.3;
+    const amount= Math.floor((params.points||0)*rate);
+    await sbInsert('daily_pays', {date:params.date, cast_name:params.castName, real_name:cast4?.real_name||'', points:params.points||0, amount, half:params.half||''});
+    return {ok:true, amount};
+  }
+  case 'getDailyPays': {
+    let rows3 = await sbSelect('daily_pays', {order:'date'});
+    if(params.castName) rows3=rows3.filter(r=>r.cast_name===params.castName);
+    if(params.month) rows3=rows3.filter(r=>(r.date||'').startsWith(params.month.slice(0,7).replace('/','-')));
+    return rows3.map((r,i)=>({row:r.id, date:r.date, castName:r.cast_name, realName:r.real_name||'', points:r.points||0, amount:r.amount||0, half:r.half||''}));
+  }
+  case 'deleteDailyPay': {
+    await sbDelete('daily_pays', {id:params.row});
+    return {ok:true};
+  }
+  case 'getMyCastPayroll': {
+    const month2 = (params.month||'').replace('/','-');
+    const [pt2, cast5, dp2] = await Promise.all([
+      sbSelect('points', {eq:{month:month2, cast_name:params.castName}}),
+      sbSelect('casts',  {eq:{name:params.castName}}),
+      sbSelect('daily_pays', {eq:{cast_name:params.castName}}),
+    ]);
+    const p2   = pt2[0]||{first_half:0,second_half:0};
+    const c5   = cast5[0]||{back_rate:0.3,show_payroll:false};
+    const dp2f = dp2.filter(d=>d.half==='前半'&&(d.date||'').startsWith(month2)).reduce((s,d)=>s+(d.amount||0),0);
+    const dp2s = dp2.filter(d=>d.half==='後半'&&(d.date||'').startsWith(month2)).reduce((s,d)=>s+(d.amount||0),0);
+    const pts1   = p2.first_half||0;
+    const pts2   = p2.second_half||0;
+    const rate5  = c5.back_rate||0.3;
+    const dpAmt1 = Math.floor(pts1*rate5) > 0 ? dp2f : dp2f; // 日当金額はそのまま
+    const pay1   = Math.floor(pts1*rate5) - dp2f;
+    const pay2   = Math.floor(pts2*rate5) - dp2s;
+    return {ok:true, pts1, pts2, ptsTotal:pts1+pts2, backRate:rate5,
+            showPayroll:c5.show_payroll!==false,
+            dpFirst:dp2f, dpSecond:dp2s, dailyTotal:dp2f+dp2s,
+            dpAmt1:dp2f, dpAmt2:dp2s,
+            pay1, pay2, payTotal:pay1+pay2,
+            // 旧キー互換
+            firstPts:pts1, secondPts:pts2};
+  }
+
+  // ── ルームマスタ ────────────────────────────
+  case 'getRoomMaster': {
+    const rows4 = await sbSelect('rooms', {order:'display_order'});
+    return rows4.map(sbRoomFmt);
+  }
+  case 'saveRoomMaster': {
+    const rrow = {name:params.name||'', description:params.desc||'', display_order:params.order||0, active:params.active!==false, shop:params.shop||''};
+    if(params.row) { await sbUpdate('rooms', rrow, {id:params.row}); }
+    else { await sbInsert('rooms', rrow); }
+    return {ok:true};
+  }
+  case 'deleteRoomMaster': {
+    await sbDelete('rooms', {id:params.row});
+    return {ok:true};
+  }
+
+  // ── 店舗マスタ ──────────────────────────────
+  case 'getShopMaster': {
+    const rows5 = await sbSelect('shops', {order:'display_order'});
+    return rows5.map(sbShopFmt);
+  }
+  case 'saveShopMaster': {
+    const srow = {name:params.name||'', display_order:params.order||0, active:params.active!==false};
+    if(params.row) { await sbUpdate('shops', srow, {id:params.row}); }
+    else { await sbInsert('shops', {...srow, created_at:new Date().toISOString()}); }
+    return {ok:true};
+  }
+  case 'deleteShopMaster': {
+    await sbDelete('shops', {id:params.row});
+    return {ok:true};
+  }
+
+  // ── スタッフ ────────────────────────────────
+  case 'getStaffs': {
+    const rows6 = await sbSelect('staffs', {order:'created_at'});
+    return rows6.map(r=>({name:r.name, backRate:r.back_rate||0.1, hourly:r.hourly||0}));
+  }
+  case 'saveStaff': {
+    const strow = {name:params.name, back_rate:params.backRate??0.1, hourly:params.hourly||0};
+    const ex2 = await sbSelect('staffs', {eq:{name:params.name}});
+    if(ex2.length) { await sbUpdate('staffs', strow, {name:params.name}); }
+    else { await sbInsert('staffs', {...strow, created_at:new Date().toISOString()}); }
+    return {ok:true};
+  }
+  case 'deleteStaff': {
+    await sbDelete('staffs', {name:params.name});
+    return {ok:true};
+  }
+  case 'getStaffPayroll': {
+    const month3 = (params.month||'').replace('/','-');
+    const [staffs2, casts6, pts2, dailys2] = await Promise.all([
+      sbSelect('staffs', {order:'created_at'}),
+      sbSelect('casts',  {order:'sort_order'}),
+      sbSelect('points', month3 ? {eq:{month:month3}} : {}),
+      sbSelect('staff_dailys', {order:'date'}),
+    ]);
+    const castPts = {};
+    pts2.forEach(p=>{ castPts[p.cast_name]=(p.first_half||0)+(p.second_half||0); });
+    return { result: staffs2.map(staff=>{
+      const myCasts = casts6.filter(c=>c.referrer===staff.name&&c.name!=='管理者');
+      const castTotal = myCasts.reduce((s,c)=>s+(castPts[c.name]||0),0);
+      const castPay   = Math.floor(castTotal*(staff.back_rate||0.1));
+      const myDailys  = dailys2.filter(d=>d.staff_name===staff.name&&(!month3||(d.date||'').startsWith(month3)));
+      const totalHours= myDailys.reduce((s,d)=>s+(d.hours||0),0);
+      const hourlyPay = myDailys.reduce((s,d)=>s+(d.amount||0),0);
+      return {name:staff.name, backRate:staff.back_rate||0.1, hourly:staff.hourly||0,
+              myCasts:myCasts.map(c=>({name:c.name,pts:castPts[c.name]||0})),
+              castTotal, castPay, totalHours, hourlyPay, payTotal:castPay+hourlyPay};
+    })};
+  }
+  case 'addStaffDaily': {
+    const staff2 = (await sbSelect('staffs', {eq:{name:params.name}}))[0];
+    const hours2 = Number(params.hours)||0;
+    const amount2= Math.floor(hours2*(staff2?.hourly||0));
+    await sbInsert('staff_dailys', {date:params.date, staff_name:params.name, hours:hours2, amount:amount2});
+    return {ok:true, amount:amount2};
+  }
+  case 'getStaffDailys': {
+    let sd = await sbSelect('staff_dailys', {order:'date'});
+    if(params.name)  sd=sd.filter(d=>d.staff_name===params.name);
+    if(params.month) sd=sd.filter(d=>(d.date||'').startsWith(params.month.slice(0,7).replace('/','-')));
+    return sd.map(r=>({row:r.id, date:r.date, name:r.staff_name, hours:r.hours||0, amount:r.amount||0}));
+  }
+  case 'deleteStaffDaily': {
+    await sbDelete('staff_dailys', {id:params.row});
+    return {ok:true};
+  }
+
+  // ── メモ・ジャンル ──────────────────────────
+  case 'getMemoMaster': {
+    return await sbSelect('memos', {order:'created_at'});
+  }
+  case 'saveMemo': {
+    const mrow = {cast_name:params.castName||'', genre:params.genre||'', body:params.body||''};
+    if(params.row) { await sbUpdate('memos', mrow, {id:params.row}); }
+    else { await sbInsert('memos', {...mrow, created_at:new Date().toISOString()}); }
+    return {ok:true};
+  }
+  case 'deleteMemo': {
+    await sbDelete('memos', {id:params.row});
+    return {ok:true};
+  }
+  case 'getGenres': {
+    const gs = await sbSelect('genres', {order:'display_order'});
+    return gs.map(g=>({row:g.id, id:String(g.id), name:g.name, order:g.display_order||0}));
+  }
+  case 'saveGenre': {
+    const grow = {name:params.name||'', display_order:params.order||0};
+    if(params.row) { await sbUpdate('genres', grow, {id:params.row}); }
+    else { await sbInsert('genres', {...grow, created_at:new Date().toISOString()}); }
+    return {ok:true};
+  }
+  case 'deleteGenre': {
+    await sbDelete('genres', {id:params.row});
+    return {ok:true};
+  }
+
+  // ── 明細書き込み（GAS経由）──────────────────
+  case 'writePayslip': {
+    const url = GAS_NOTIFY_URL + '?action=writePayslip&params=' + encodeURIComponent(JSON.stringify(params));
+    const res = await fetch(url, {redirect:'follow'});
+    const text = await res.text();
+    try {
+      const json = JSON.parse(text);
+      return json.success ? json.data : {ok:false, error: json.error||'GASエラー'};
+    } catch(e) {
+      return {ok: false, error: 'レスポンスエラー'};
+    }
+  }
+
+  default:
+    throw new Error('Unknown action: '+action);
+  }
+}
+
+// ── フォーマット関数 ──────────────────────────
+function sbCastFmt(r) {
+  return {
+    name:r.name||'', realName:r.real_name||'', userId:r.user_id||'',
+    loginId:r.login_id||'', password:r.password||'',
+    payType:r.pay_type||'normal', backRate:r.back_rate??0.3,
+    showPayroll:r.show_payroll!==false, referrer:r.referrer||'',
+    sortOrder:r.sort_order??9999, shop:r.shop||'',
+    registeredAt:r.created_at ? r.created_at.slice(0,10).replace(/-/g,'/') : ''
+  };
+}
+function sbShiftFmt(r) {
+  return {
+    row:r.id, therapist:r.therapist||'',
+    date:(r.date||'').replace(/-/g,'/'),
+    startTime:r.start_time||'', endTime:r.end_time||'',
+    status:r.status||'pending', memo:r.memo||'',
+    roomId:String(r.room_id||''), roomName:r.room_name||'',
+    submittedAt:r.submitted_at ? r.submitted_at.slice(0,16).replace('T',' ') : '',
+    approvedAt: r.approved_at  ? r.approved_at.slice(0,16).replace('T',' ')  : ''
+  };
+}
+function sbRoomFmt(r) {
+  return {
+    row:r.id, id:String(r.id), name:r.name||'', desc:r.description||'',
+    order:r.display_order||0, active:r.active!==false, shop:r.shop||''
+  };
+}
+function sbShopFmt(r) {
+  return {
+    row:r.id, id:String(r.id), name:r.name||'',
+    order:r.display_order||0, active:r.active!==false
+  };
+}
+
+// ── パスワードログイン ───────────────────────
+async function loginWithPw(){
+  const password = document.getElementById('pw-password')?.value.trim();
+  const msgEl    = document.getElementById('login-msg');
+  if(!password){ msgEl.textContent='パスワードを入力してください'; return; }
+  msgEl.textContent='認証中…';
+  try{
+    const res = await apiGet('loginWithPassword', {password});
+    if(res && res.ok){
+      S.castName  = res.name;
+      S.isAdmin   = false;
+      await bootApp();
+    } else {
+      msgEl.textContent = res?.error || 'パスワードが違います';
+    }
+  } catch(e){
+    msgEl.textContent = '通信エラー: ' + e.message;
+  }
+}
+
+// ── 初期化 ──────────────────────────────
+async function init() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('admin')==='1') { S.castName='管理者'; S.isAdmin=true; await bootApp(); return; }
+  showLogin();
+}
+
+function showLogin(msg='') {
+  document.getElementById('loading').classList.add('hide');
+  document.getElementById('login-screen').style.display='flex';
+  if (msg) document.getElementById('login-msg').textContent=msg;
+}
+
+async function bootApp() {
+  try {
+    const d = await apiGet('getInitialData');
+    S.casts=d.casts||[]; S.shops=d.shops||[]; S.rooms=d.rooms||[];
+    S.approvedShifts=d.approvedShifts||[]; S.pendingShifts=d.pendingShifts||[];
+  } catch(e) { console.warn(e); }
+  document.getElementById('loading').classList.add('hide');
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').classList.add('show');
+  document.getElementById('sb-name').textContent=S.castName;
+  buildNav(); buildMonthFilter();
+  if (S.isAdmin) {
+    // カレンダー（キャスト別）をデフォルト表示
+    S.calWeekBase = getMonday(new Date());
+    showPage('page-calendar'); setCalView('cast');
+    loadApproval(); renderAdminCal();
+    loadReminder(); renderCastTable(); renderStaffTable(); renderShopTable(); renderRoomTable(); buildPayMonthFilter(); buildStaffPayMonthFilter();
+  } else {
+    // 自分のキャスト情報を取得してshowPayrollを確認
+    const myCast = S.casts.find(c => c.name === S.castName);
+    S.showPayroll = myCast ? (myCast.showPayroll !== false) : false;
+    buildNav(); // showPayroll確定後に再構築
+    buildMyPayMonthFilter();
+    showPage('page-submit'); addShiftRow(); loadMyShifts(); renderMyCal();
+  }
+}
+function logout(){ location.href=location.pathname; }
+
+// ── ナビ ──────────────────────────────────
+const NAV=[
+  {id:'page-submit',      label:'シフト提出',icon:'📝',t:true, a:false},
+  {id:'page-my-payroll',  label:'給料確認',  icon:'💴',t:'payroll', a:false},
+  {id:'page-calendar', label:'カレンダー',icon:'📅',t:false,a:true},
+  {id:'page-reminder', label:'未提出者',  icon:'📣',t:false,a:true},
+  {id:'page-payroll',  label:'給料管理',  icon:'💰',t:false,a:true},
+  {id:'page-casts',      label:'キャスト',    icon:'👩',t:false,a:true},
+  {id:'page-staff',      label:'スタッフ',    icon:'🧑',t:false,a:true},
+  {id:'page-staff-pay',  label:'スタッフ給料',icon:'💼',t:false,a:true},
+  {id:'page-shops',      label:'店舗',        icon:'🏪',t:false,a:true},
+  {id:'page-rooms',      label:'ルーム',      icon:'🚪',t:false,a:true},
+];
+function buildNav(){
+  const items=NAV.filter(n=>S.isAdmin ? n.a : (n.t===true || (n.t==='payroll' && S.showPayroll)));
+  ['sb-nav','mob-nav'].forEach(navId=>{
+    const nav=document.getElementById(navId); const isMob=navId==='mob-nav';
+    nav.innerHTML='';
+    items.forEach(n=>{
+      const el=document.createElement('div');
+      el.className=isMob?'mob-item':'nav-item'; el.id=navId+'-'+n.id;
+      el.innerHTML=isMob
+        ?`<span style="font-size:20px">${n.icon}</span><span>${n.label}</span>`
+        :`<span>${n.icon}</span><span>${n.label}</span>${n.id==='page-approval'?'<span class="nav-badge" id="pending-badge" style="display:none">0</span>':''}`;
+      el.onclick=()=>showPage(n.id);
+      nav.appendChild(el);
+    });
+  });
+  updatePendingBadge();
+}
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item,.mob-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+  document.querySelectorAll(`[id$="-${id}"]`).forEach(n=>n.classList.add('active'));
+  if(id==='page-calendar')    renderAdminCal();
+  if(id==='page-my-payroll')   loadMyCastPayroll();
+  if(id==='page-staff')        renderStaffTable();
+  if(id==='page-shops')        renderShopTable();
+  if(id==='page-staff-pay')    loadStaffPayroll();
+  if(id==='page-payroll')  loadPayroll();
+}
+function updatePendingBadge(){
+  const cnt=S.pendingShifts.length;
+  document.querySelectorAll('#pending-badge').forEach(el=>{el.style.display=cnt>0?'':'none';el.textContent=cnt;});
+}
+
+// ── 月フィルター ──────────────────────────
+function buildMonthFilter(){
+  const sel=document.getElementById('af-month'); const now=new Date();
+  for(let i=-1;i<=4;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+    const val=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const opt=document.createElement('option');
+    opt.value=val; opt.textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+    if(i===0)opt.selected=true; sel.appendChild(opt);
+  }
+}
+function buildPayMonthFilter(){
+  const sel=document.getElementById('pay-month'); const now=new Date();
+  for(let i=-3;i<=2;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+    const val=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const opt=document.createElement('option');
+    opt.value=val; opt.textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+    if(i===0)opt.selected=true; sel.appendChild(opt);
+  }
+}
+
+// ── シフト提出 ──────────────────────────────
+let _rowId=0;
+function addShiftRow(){
+  const id=++_rowId; const tom=new Date(); tom.setDate(tom.getDate()+1);
+  const todStr=new Date().toISOString().slice(0,10); const tomStr=tom.toISOString().slice(0,10);
+  const div=document.createElement('div'); div.className='shift-row'; div.id='sr-'+id;
+  div.innerHTML=`
+    <button class="shift-remove" onclick="document.getElementById('sr-${id}').remove()">✕ 削除</button>
+    <div class="shift-row-fields">
+      <div class="fg"><label>日付</label><input type="date" id="sd-${id}" value="${tomStr}" min="${todStr}"></div>
+      <div class="fg"><label>開始時間</label><select id="ss-${id}" style="font-family:var(--mono)">${buildTimeOptions('10:00')}</select></div>
+      <div class="fg"><label>終了時間<br><span style="font-size:10px;color:var(--text3)">（翌0〜6時は翌日扱い）</span></label><select id="se-${id}" style="font-family:var(--mono)">${buildTimeOptions('19:00')}</select></div>
+    </div>
+    <div class="fg"><label>メモ（任意）</label><input type="text" id="sm-${id}" placeholder="備考など"></div>`;
+  document.getElementById('shift-rows').appendChild(div);
+}
+function clearShiftRows(){ document.getElementById('shift-rows').innerHTML=''; _rowId=0; addShiftRow(); }
+async function submitShifts(){
+  const rows=[...document.querySelectorAll('[id^="sr-"]')];
+  if(!rows.length){toast('日程を追加してください','error');return;}
+
+  const items=[];
+  for(const row of rows){
+    const id=row.id.slice(3);
+    const date =document.getElementById('sd-'+id)?.value;
+    const start=document.getElementById('ss-'+id)?.value;
+    const end  =document.getElementById('se-'+id)?.value;
+    const memo =document.getElementById('sm-'+id)?.value||'';
+    if(!date||!start){toast('入力が不足しています','error');return;}
+
+    // 終了時刻が開始時刻以前 → 翌日扱いで表示用に26時換算
+    // 例: 開始14:00 終了2:00 → 26:00として保存
+    const sMin = timeToMin(start);
+    let   eMin = timeToMin(end);
+    let   dispEnd = end;
+    if(eMin <= sMin){
+      // 翌日扱い: 分を24h加算して表示文字列を生成
+      eMin += 24 * 60;
+      const nh = Math.floor(eMin / 60);
+      const nm = eMin % 60;
+      dispEnd = nh + ':' + String(nm).padStart(2,'0');
+    }
+    items.push({date, startTime:start, endTime:dispEnd, memo});
+  }
+
+  // ── チェック1: 入力行同士の重複 ──
+  for(let i=0;i<items.length;i++){
+    for(let j=i+1;j<items.length;j++){
+      const a=items[i], b=items[j];
+      if(a.date===b.date && hasTimeOverlap(a.startTime,a.endTime,b.startTime,b.endTime)){
+        toast('⛔ 入力した日程が重複しています：' + a.date + ' ' + a.startTime + '〜' + a.endTime + ' と ' + b.startTime + '〜' + b.endTime, 'error');
+        return;
+      }
+    }
+  }
+
+  // ── チェック2: 既提出シフト（pending/approved）との重複 ──
+  // loadMyShiftsで最新化されたS.approvedShiftsとS.pendingShiftsを使用
+  const existingShifts = [
+    ...S.approvedShifts.filter(s => s.therapist === S.castName && s.status !== 'cancelled' && s.status !== 'rejected'),
+    ...S.pendingShifts.filter(s => s.therapist === S.castName)
+  ];
+  for(const item of items){
+    // 日付の正規化（2026/04/03 → 2026-04-03）
+    const conflict = existingShifts.find(s => {
+      const sDate = (s.date || '').replace(/\//g, '-');
+      return sDate === item.date && hasTimeOverlap(item.startTime, item.endTime, s.startTime, s.endTime);
+    });
+    if(conflict){
+      const statusLabel = {pending:'未承認', approved:'確定', rejected:'却下'}[conflict.status] || conflict.status;
+      toast('⛔ すでに同じ時間帯にシフトが存在します：' + item.date + ' ' + item.startTime + '〜' + item.endTime + '（' + statusLabel + ': ' + conflict.startTime + '〜' + conflict.endTime + '）', 'error');
+      return;
+    }
+  }
+
+  const btn=document.getElementById('submit-btn'); btn.disabled=true; btn.textContent='提出中…';
+  try{
+    const res=await apiGet('submitShiftBulk',{castName:S.castName,items});
+    toast(res.count+'件を提出しました','success'); clearShiftRows(); await loadMyShifts();
+  }catch(e){toast('提出エラー: '+e.message,'error');}
+  finally{btn.disabled=false;btn.textContent='まとめて提出';}
+}
+
+
+// ── 時刻ユーティリティ ─────────────────────────────
+// 時刻セレクト用オプションHTML（0:00〜29:30 30分刻み）を生成
+function buildTimeOptions(selected) {
+  let opts = '';
+  for (let h = 0; h < 30; h++) {
+    for (let m of [0, 30]) {
+      const value = h + ':' + String(m).padStart(2,'0');
+      const label = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+      // selectedは "10:00" 形式でも "10:0" 形式でもマッチ
+      const sel = (value === selected || label === selected) ? ' selected' : '';
+      opts += '<option value="' + value + '"' + sel + '>' + label + '</option>';
+    }
+  }
+  return opts;
+}
+
+// 時刻文字列を分に変換（26:00 → 1560）
+// 時間帯重複チェック（HH:MM形式）
+function hasTimeOverlap(s1,e1,s2,e2){
+  const toMin=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
+  return !(toMin(e1)<=toMin(s2)||toMin(s1)>=toMin(e2));
+}
+async function loadMyShifts(){
+  try{
+    const shifts=await apiGet('getShifts',{therapist:S.castName});
+    const tbody=document.getElementById('my-shifts-body'); tbody.innerHTML='';
+    if(!shifts.length){
+      tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">提出済みシフトはありません</td></tr>';
+    } else {
+      // 新しい順 → 日付順でソート、cancelledは末尾
+      const sorted = [...shifts].sort((a,b) => {
+        if(a.status==='cancelled' && b.status!=='cancelled') return 1;
+        if(a.status!=='cancelled' && b.status==='cancelled') return -1;
+        return a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
+      });
+      sorted.forEach(s=>{
+        const tr=document.createElement('tr');
+        const isCancelled = s.status === 'cancelled';
+        if(isCancelled) tr.className = 'cancelled-row';
+        const cancelBtn = (s.status === 'pending')
+          ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);font-size:11px" onclick="cancelMyShift(${s.row})">取消</button>`
+          : '';
+        tr.innerHTML=`
+          <td style="white-space:nowrap">${fmtShiftTime(s.date,s.startTime,s.endTime)}</td>
+          <td>${statusBadge(s.status)}</td>
+          <td style="color:var(--green);font-size:12px">${s.roomName||''}</td>
+          <td style="color:var(--text3);font-size:12px">${s.memo||''}</td>
+          <td>${cancelBtn}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    // キャスト自身のapproved/pendingを更新（重複チェックに使用）
+    S.approvedShifts=shifts.filter(s=>s.status==='approved'); renderMyCal();
+    S.pendingShifts = [
+      ...S.pendingShifts.filter(s=>s.therapist!==S.castName), // 他のキャストのpendingは維持
+      ...shifts.filter(s=>s.status==='pending')               // 自分のpendingを最新化
+    ];
+  }catch(e){console.error(e);}
+}
+
+// シフトのキャンセル（pendingのみ）
+async function cancelMyShift(row){
+  if(!confirm('このシフト申請をキャンセルしますか？\n（履歴として残ります）')) return;
+  try{
+    await apiGet('cancelShift', { row, castName: S.castName });
+    toast('シフトをキャンセルしました', 'success');
+    await loadMyShifts();
+  }catch(e){ toast('キャンセルエラー: '+e.message, 'error'); }
+}
+
+// ── カレンダー ──────────────────────────────
+const DAY_NAMES=['日','月','火','水','木','金','土'];
+const BOOTH_EMOJI=['①','②','③','④','⑤','⑥','⑦'];
+
+function roomDisp(roomName){
+  if(!roomName) return '';
+  const m=roomName.match(/[1-7１-７]/);
+  if(m){
+    const ch=m[0]; const n=ch>='１'?ch.charCodeAt(0)-0xFF10:parseInt(ch);
+    if(n>=1&&n<=7) return `${BOOTH_EMOJI[n-1]}ブース${n}`;
+  }
+  return `🚪${roomName}`;
+}
+
+// ルーム名からCSSクラスを返す
+function roomColorClass(roomName){
+  if(!roomName) return 'room-none';
+  if(/在宅|ざいたく|home/i.test(roomName)) return 'room-home';
+  const m=roomName.match(/[1-7１-７]/);
+  if(m){
+    const ch=m[0]; const n=ch>='１'?ch.charCodeAt(0)-0xFF10:parseInt(ch);
+    if(n>=1&&n<=7) return 'room-'+n;
+  }
+  return 'room-none';
+}
+
+function buildCalGrid(gridId, labelEl, year, month, shifts, filterCast){
+  labelEl.textContent=year+'年'+(month+1)+'月';
+  const grid=document.getElementById(gridId); grid.innerHTML='';
+  DAY_NAMES.forEach((d,i)=>{ const el=document.createElement('div'); el.className='cal-dh'; el.textContent=d; grid.appendChild(el); });
+  const firstDay=new Date(year,month,1).getDay();
+  const lastDate=new Date(year,month+1,0).getDate();
+  const todayStr=new Date().toISOString().slice(0,10);
+  const monthStr=year+'/'+String(month+1).padStart(2,'0');
+  const byDay={};
+  shifts.forEach(s=>{
+    if(!s.date.startsWith(monthStr)) return;
+    const d=s.date.slice(8,10);
+    if(!byDay[d]) byDay[d]=[];
+    byDay[d].push(s);
+  });
+  for(let i=0;i<firstDay;i++){ const el=document.createElement('div'); el.className='cal-cell other'; grid.appendChild(el); }
+  for(let d=1;d<=lastDate;d++){
+    const dow=new Date(year,month,d).getDay();
+    const dateStr=year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const cell=document.createElement('div');
+    cell.className='cal-cell'+(dateStr===todayStr?' today':'')+(dow===6?' sat':dow===0?' sun':'');
+    const num=document.createElement('div'); num.className='cal-num'; num.textContent=d; cell.appendChild(num);
+    const dayShifts=byDay[String(d).padStart(2,'0')]||[];
+    dayShifts.filter(s=>!filterCast||s.therapist===filterCast)
+      .sort((a,b)=>a.startTime.localeCompare(b.startTime))
+      .forEach(s=>{
+        const chip=document.createElement('div');
+        // ルーム色 + pending時は点線枠クラス追加
+        chip.className='cal-chip '+roomColorClass(s.roomName)+(s.status==='pending'?' pending':'');
+        chip.title=`${s.therapist} ${s.startTime}〜${s.endTime}${s.roomName?' ('+s.roomName+')':''}${s.memo?' ['+s.memo+']':''}`;
+        const memoMark=s.memo?`<span class="cal-memo-mark" onclick="event.stopPropagation();showMemoPopup(event,'${s.therapist}',\`${s.memo.replace(/`/g,'\\`')}\`)">📝</span>`:'';
+        const namePart=filterCast?'':`<div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.therapist}${memoMark}</div>`;
+        const timePart=`<div>${s.startTime}〜${s.endTime}${filterCast?memoMark:''}</div>`;
+        const rd=roomDisp(s.roomName);
+        const rPart=rd?`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9">${rd}</div>`:'';
+        chip.innerHTML=namePart+timePart+rPart;
+        // 管理者カレンダーからタップで操作モーダルを開く（承認済み・未承認）
+        if((s.status==='approved'||s.status==='pending') && s.row && !filterCast){
+          chip.style.cursor='pointer';
+          chip.onclick = ()=>openCalAction(s.row);
+        }
+        cell.appendChild(chip);
+      });
+    grid.appendChild(cell);
+  }
+}
+let S_calView = 'month';
+
+// 月曜日を返すユーティリティ
+function getMonday(date){
+  const d = new Date(date);
+  const dow = d.getDay();
+  const diff = dow === 0 ? -6 : 1 - dow; // 日曜なら-6、それ以外は月曜へ
+  d.setDate(d.getDate() + diff);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+let S_shopFilter = '__all__'; // 現在選択中の店舗
+
+function setCalView(view){
+  S_calView = view;
+  ['month','cast'].forEach(v=>{
+    const el = document.getElementById('cal-'+v+'-view');
+    if(el) el.style.display = v===view ? '' : 'none';
+    const btn = document.getElementById('cal-view-'+v);
+    if(btn){ btn.style.background = v===view ? 'var(--accent)' : 'var(--bg3)'; btn.style.color = v===view ? '#fff' : 'var(--text2)'; }
+  });
+  const todayBtn = document.getElementById('cal-nav-today');
+  if(todayBtn) todayBtn.textContent = view==='cast' ? '今週' : '今月';
+  if(view === 'cast'){
+    if(!S.calWeekBase) S.calWeekBase = getMonday(new Date());
+    buildShopTabs();
+  }
+  renderAdminCal();
+}
+
+// 店舗タブを構築（店舗マスタから生成）
+function buildShopTabs(){
+  const wrap = document.getElementById('shop-tabs');
+  if(!wrap) return;
+  // 店舗マスタの有効な店舗を表示順で取得
+  const shops = S.shops.filter(s=>s.active).map(s=>s.name);
+  wrap.innerHTML = '';
+  const allShops = ['__all__', ...shops];
+  allShops.forEach(shop=>{
+    const btn = document.createElement('button');
+    const isAll = shop === '__all__';
+    btn.textContent = isAll ? '全店舗' : shop;
+    btn.style.cssText = 'border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:600;'
+      +'padding:5px 12px;border-radius:20px;transition:all .12s;'
+      +(S_shopFilter===shop
+        ? 'background:var(--accent);color:#fff;'
+        : 'background:var(--bg3);color:var(--text2);');
+    btn.onclick = ()=>{ S_shopFilter=shop; buildShopTabs(); renderAdminCal(); };
+    wrap.appendChild(btn);
+  });
+}
+
+function renderAdminCal(){
+  const labelEl = document.getElementById('admin-cal-label');
+  if(!labelEl) return;
+  if(S_calView === 'cast'){
+    const base = S.calWeekBase || getMonday(new Date());
+    S.calWeekBase = base;
+    const sun = new Date(base); sun.setDate(base.getDate() + 6);
+    labelEl.textContent = (base.getMonth()+1)+'/'+base.getDate()+'（月）〜'+(sun.getMonth()+1)+'/'+sun.getDate()+'（日）';
+    buildCastCal(base, [...S.approvedShifts, ...S.pendingShifts]);
+    buildShopTabs();
+  } else {
+    const d = S.calMonth.admin;
+    labelEl.textContent = d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+    buildCalGrid('admin-cal-grid', labelEl, d.getFullYear(), d.getMonth(), [...S.approvedShifts, ...S.pendingShifts], null);
+  }
+}
+
+// 統合ナビ
+function calNavPrev(){
+  if(S_calView === 'cast'){
+    S.calWeekBase = S.calWeekBase || getMonday(new Date());
+    S.calWeekBase = new Date(S.calWeekBase.getTime() - 7*24*60*60*1000);
+  } else {
+    const d = S.calMonth.admin;
+    S.calMonth.admin = new Date(d.getFullYear(), d.getMonth()-1, 1);
+  }
+  renderAdminCal();
+}
+function calNavNext(){
+  if(S_calView === 'cast'){
+    S.calWeekBase = S.calWeekBase || getMonday(new Date());
+    S.calWeekBase = new Date(S.calWeekBase.getTime() + 7*24*60*60*1000);
+  } else {
+    const d = S.calMonth.admin;
+    S.calMonth.admin = new Date(d.getFullYear(), d.getMonth()+1, 1);
+  }
+  renderAdminCal();
+}
+function calNavToday(){
+  if(S_calView === 'cast'){
+    S.calWeekBase = getMonday(new Date());
+  } else {
+    S.calMonth.admin = new Date();
+  }
+  renderAdminCal();
+}
+
+// ── キャスト固定行カレンダー ─────────────────────
+// 縦軸=日付, 横軸=キャスト（キャストマスタの登録順）
+function buildCastCal(weekBase, shifts){
+  const wrap = document.getElementById('cast-cal-wrap');
+  if(!wrap) return;
+
+  const todayStr = new Date().toISOString().slice(0,10);
+
+  // 月曜〜日曜の7日を生成
+  const dates = [];
+  for(let i=0; i<7; i++){
+    const d = new Date(weekBase.getTime() + i*24*60*60*1000);
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth()+1).padStart(2,'0');
+    const dd   = String(d.getDate()).padStart(2,'0');
+    const dateStr = yyyy+'-'+mm+'-'+dd;
+    const calDate = yyyy+'/'+mm+'/'+dd;
+    dates.push({ d, dateStr, calDate, dow: d.getDay(), isToday: dateStr===todayStr,
+                 label: (d.getMonth()+1)+'/'+d.getDate() });
+  }
+
+  // キャストマスタから表示対象（店舗フィルター適用）
+  const allCasts = S.casts.filter(c => c.name && c.name !== '管理者');
+  const casts = (S_shopFilter && S_shopFilter !== '__all__')
+    ? allCasts.filter(c => c.shop === S_shopFilter)
+    : allCasts;
+  if(!casts.length){ wrap.innerHTML='<div style="padding:20px;color:var(--text3)">該当するキャストがいません</div>'; return; }
+
+  // shiftMap[キャスト名][yyyy/MM/dd] = [shift, ...]
+  const shiftMap = {};
+  const calDates = new Set(dates.map(d=>d.calDate));
+  shifts.forEach(s=>{
+    if(!calDates.has(s.date)) return;
+    if(!shiftMap[s.therapist]) shiftMap[s.therapist] = {};
+    if(!shiftMap[s.therapist][s.date]) shiftMap[s.therapist][s.date] = [];
+    shiftMap[s.therapist][s.date].push(s);
+  });
+
+  const table = document.createElement('table');
+  table.className = 'cast-cal';
+
+  // ── ヘッダー行：左端空白 + 月〜日の7列 ──
+  const thead = document.createElement('thead');
+  const hRow  = document.createElement('tr');
+  const thName = document.createElement('th');
+  thName.className = 'cc-name-col';
+  thName.innerHTML = '<button onclick="sendBulkWeekNotify()" '
+    + 'style="font-size:9px;padding:2px 4px;border:1px solid var(--green);border-radius:4px;background:rgba(61,214,140,.15);color:var(--green);cursor:pointer;font-family:var(--font);line-height:1.2;white-space:nowrap">📨一括</button>';
+  hRow.appendChild(thName);
+
+  dates.forEach(({ label, dow, isToday })=>{
+    const th = document.createElement('th');
+    th.className = 'cc-date-col';
+    const dowLabel = ['日','月','火','水','木','金','土'][dow];
+    const color = isToday ? 'var(--accent)' : dow===6 ? '#5b8def' : dow===0 ? '#f5455a' : 'var(--text2)';
+    th.innerHTML = '<span style="color:'+color+';font-family:var(--mono);font-weight:700">'+label+'</span>'
+      +'<br><span style="font-weight:700;font-size:11px;color:'+color+'">'+dowLabel+'</span>';
+    hRow.appendChild(th);
+  });
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  // ── データ行：1キャスト1行 ──
+  const tbody = document.createElement('tbody');
+  casts.forEach(cast=>{
+    const tr = document.createElement('tr');
+
+    // 左端：キャスト名（固定）+ 通知ボタン
+    const tdName = document.createElement('td');
+    tdName.className = 'cc-cast-cell';
+    // その週のシフトを取得
+    const castWeekShifts = dates.map(d => (shiftMap[cast.name]&&shiftMap[cast.name][d.calDate])||[]).flat()
+      .filter(s => s.status==='approved');
+    const hasShift = castWeekShifts.length > 0;
+    const safeId = 'cn_' + cast.name.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ一-龠]/g,'_') + '_' + Date.now();
+    tdName.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;gap:4px;width:100%">'
+      + '<span style="font-size:11px;font-weight:700;line-height:1.4;text-align:center">' + cast.name + '</span>'
+      + (hasShift
+        ? '<button data-cast="' + cast.name.replace(/"/g,'&quot;') + '" data-rows="' + castWeekShifts.map(s=>s.row).join(',') + '" '
+          + 'style="font-size:9px;padding:2px 4px;border:1px solid var(--accent);border-radius:4px;background:rgba(91,141,239,.15);color:var(--accent);cursor:pointer;font-family:var(--font);line-height:1.4;white-space:nowrap;flex-shrink:0">📨</button>'
+        : '')
+      + '</div>';
+    // ボタンにイベントリスナーを設定
+    if(hasShift){
+      const btn = tdName.querySelector('button');
+      if(btn) btn.addEventListener('click', e=>{
+        e.stopPropagation();
+        const rows = btn.dataset.rows.split(',');
+        sendCastWeekNotify(btn.dataset.cast, rows);
+      });
+    }
+    tdName.title = cast.realName ? cast.name+'（'+cast.realName+'）' : cast.name;
+    tr.appendChild(tdName);
+
+    // 日付ごとのシフトセル
+    dates.forEach(({ calDate, dow, isToday })=>{
+      const td = document.createElement('td');
+      const dayShifts = (shiftMap[cast.name] && shiftMap[cast.name][calDate]) || [];
+      const dowCls = isToday ? ' today' : dow===6 ? ' sat' : dow===0 ? ' sun' : '';
+      if(dayShifts.length === 0){
+        td.className = 'cc-shift cc-empty'+dowCls;
+        td.innerHTML = '';
+      } else {
+        td.className = 'cc-shift'+dowCls;
+        dayShifts.sort((a,b)=>a.startTime.localeCompare(b.startTime)).forEach(s=>{
+          const chip = document.createElement('div');
+          chip.className = 'cc-chip '+roomColorClass(s.roomName)+(s.status==='pending'?' pending':'');
+          chip.title = s.startTime+'〜'+s.endTime+(s.roomName?' ['+s.roomName+']':'')+(s.memo?' ('+s.memo+')':'');
+          const rd = roomDisp(s.roomName);
+          const memoMark2 = s.memo
+            ? '<span title="'+s.memo.replace(/"/g,"&quot;")+'" style="cursor:default">📝</span>' : '';
+          chip.innerHTML = '<div style="font-weight:600;font-size:10px">'+s.startTime+'〜'+s.endTime+memoMark2+'</div>'
+            +(rd ? '<div style="opacity:.85;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+rd+'</div>' : '')
+            +(s.memo ? '<div style="font-size:9px;opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.memo+'</div>' : '');
+          if((s.status==='approved'||s.status==='pending') && s.row){
+            chip.style.cursor = 'pointer';
+            chip.onclick = ()=>openCalAction(s.row);
+          }
+          td.appendChild(chip);
+        });
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+}
+
+function renderMyCal(){ const d=S.calMonth.my; buildCalGrid('my-cal-grid',document.getElementById('my-cal-label'),d.getFullYear(),d.getMonth(),[...S.approvedShifts,...S.pendingShifts],S.castName); }
+function calPrev(k){ const d=S.calMonth[k]; S.calMonth[k]=new Date(d.getFullYear(),d.getMonth()-1,1); k==='admin'?renderAdminCal():renderMyCal(); }
+function calNext(k){ const d=S.calMonth[k]; S.calMonth[k]=new Date(d.getFullYear(),d.getMonth()+1,1); k==='admin'?renderAdminCal():renderMyCal(); }
+function calGoToday(k){ S.calMonth[k]=new Date(); k==='admin'?renderAdminCal():renderMyCal(); }
+// キャスト側のmy用（使いまわし）
+
+// ── 承認 ──────────────────────────────────
+async function loadApproval(){
+  const month=document.getElementById('af-month')?.value||'';
+  const status=document.getElementById('af-status')?.value||'';
+  const cast=document.getElementById('af-cast')?.value||'';
+  try{
+    const shifts=await apiGet('getShifts',{month,status,therapist:cast});
+    S.currentShifts=shifts||[]; S.checkedRows.clear();
+    document.getElementById('check-all').checked=false;
+    const selC=document.getElementById('af-cast'); const curV=selC.value;
+    const names=[...new Set(shifts.map(s=>s.therapist))].sort();
+    selC.innerHTML='<option value="">全キャスト</option>';
+    names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;if(n===curV)o.selected=true;selC.appendChild(o);});
+    // pendingShiftsは月フィルター結果で上書きせず、差分更新する
+    if(!status||status==='pending'){
+      const monthPending = shifts.filter(s=>s.status==='pending');
+      // 今月分だけ入れ替え（他月のpendingは維持）
+      const month = monthPending.length ? monthPending[0].date.slice(0,7) : '';
+      if(month){
+        S.pendingShifts = [
+          ...S.pendingShifts.filter(s=>!s.date.startsWith(month)), // 他月を維持
+          ...monthPending                                             // 今月分を更新
+        ];
+      } else {
+        S.pendingShifts = monthPending;
+      }
+      updatePendingBadge();
+    }
+    const pending=S.currentShifts.filter(s=>s.status==='pending');
+    const banner=document.getElementById('pending-banner');
+    if(pending.length&&(!status||status==='pending')){ banner.style.display='flex'; banner.textContent=`⏳ 未承認シフトが${pending.length}件あります`; }
+    else banner.style.display='none';
+    renderApprovalTable();
+  }catch(e){toast('シフト取得エラー: '+e.message,'error');}
+}
+function renderApprovalTable(){
+  const tbody=document.getElementById('approval-body'); tbody.innerHTML='';
+  const bulkBtn=document.getElementById('bulk-approve-btn');
+  if(!S.currentShifts.length){ tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">シフトはありません</td></tr>'; bulkBtn.style.display='none'; return; }
+  const hasPending=S.currentShifts.some(s=>s.status==='pending');
+  bulkBtn.style.display=hasPending?'':'none';
+  S.currentShifts.forEach(s=>{
+    const tr=document.createElement('tr'); const ip=s.status==='pending';
+    const isCancelled = s.status === 'cancelled';
+    if(isCancelled) tr.style.opacity = '0.45';
+    tr.innerHTML=`
+      <td class="cb-col">${ip?`<input type="checkbox" id="chk-${s.row}" value="${s.row}" onchange="onCheck(${s.row},this.checked)">`:''}</td>
+      <td style="font-family:var(--mono);font-size:12px;white-space:nowrap;${isCancelled?'text-decoration:line-through':''}">${fmtShiftTime(s.date,s.startTime,s.endTime)}</td>
+      <td><strong>${s.therapist}</strong></td>
+      <td>${s.roomName?`<span style="color:var(--green)">${s.roomName}</span>`:'<span style="color:var(--text3)">未割当</span>'}</td>
+      <td>${statusBadge(s.status)}</td>
+      <td style="color:var(--text3);font-size:12px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${s.memo||''}</td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+        ${ip?`<button class="btn btn-green btn-sm" onclick="openApproveModal(${s.row})">承認</button>`:''}
+        ${ip?`<button class="btn btn-red btn-sm" onclick="openRejectModal(${s.row})">却下</button>`:''}
+        ${s.status==='approved'?`<button class="btn btn-ghost btn-sm" onclick="openEditModal(${s.row})">変更</button>`:''}
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="doDeleteShift(${s.row})">削除</button>
+      </div></td>`;
+    tbody.appendChild(tr);
+  });
+}
+function onCheck(row,chk){ chk?S.checkedRows.add(row):S.checkedRows.delete(row); }
+function toggleAllCheck(chk){ S.currentShifts.filter(s=>s.status==='pending').forEach(s=>{ S.checkedRows[chk?'add':'delete'](s.row); const cb=document.getElementById('chk-'+s.row); if(cb)cb.checked=chk; }); }
+
+function openApproveModal(row){
+  const s=S.currentShifts.find(x=>x.row===row); if(!s)return; S.approveTarget=s;
+  document.getElementById('approve-info').innerHTML=`<b>${s.therapist}</b><br>${fmtShiftTime(s.date,s.startTime,s.endTime)}`;
+  populateRoomSelect('approve-room', s.roomId, getCastShop(s.therapist));
+  document.getElementById('conflict-warn').style.display='none';
+  document.getElementById('m-approve').classList.remove('hidden');
+}
+// 時刻文字列(HH:MM)を分に変換
+function timeToMin(t){
+  if(!t) return 0;
+  const [h,m] = t.split(':').map(Number);
+  return h*60 + m;
+}
+
+// ルーム重複チェック（30分インターバル込み）
+// targetに {date, startTime, endTime, row(省略可)} を渡す
+// roomIdが空なら常にfalse
+function hasRoomConflict(roomId, target, excludeRow){
+  if(!roomId) return false;
+  // 在宅ルームは他と被っても問題なし
+  const roomObj = S.rooms.find(r=>String(r.id)===String(roomId));
+  if(roomObj && /在宅|ざいたく|home/i.test(roomObj.name)) return false;
+  const tS = timeToMin(target.startTime);
+  const tE = timeToMin(target.endTime);
+  // 既存の承認済みシフトを全件チェック（approvedShifts + currentShiftsのapproved）
+  const allApproved = [
+    ...S.approvedShifts,
+    ...S.currentShifts.filter(x => x.status === 'approved')
+  ].filter((x, i, arr) => arr.findIndex(y => y.row === x.row) === i); // 重複除去
+
+  return allApproved.some(x => {
+    if(excludeRow && x.row === excludeRow) return false;
+    if(x.date !== target.date) return false;
+    if(String(x.roomId) !== String(roomId)) return false;
+    const xS = timeToMin(x.startTime);
+    const xE = timeToMin(x.endTime);
+    // 既存シフトの前後30分を含めた範囲と重なるか判定
+    // 既存: [xS-30, xE+30] と 新規: [tS, tE] が重なる場合NG
+    return !(tE <= xS - 30 || tS >= xE + 30);
+  });
+}
+
+function checkConflict(){
+  const s=S.approveTarget; if(!s)return;
+  const roomId=document.getElementById('approve-room').value;
+  if(!roomId){document.getElementById('conflict-warn').style.display='none';return;}
+  const conflict = hasRoomConflict(roomId, s, s.row);
+  document.getElementById('conflict-warn').style.display=conflict?'flex':'none';
+}
+async function confirmApprove(){
+  const s=S.approveTarget; const roomId=document.getElementById('approve-room').value;
+  const room=S.rooms.find(r=>String(r.id)===String(roomId));
+  // ルームが指定されている場合は30分インターバルチェック
+  if(roomId && hasRoomConflict(roomId, s, s.row)){
+    toast('⛔ 同じルームに30分以内のシフトが存在します。別のルームを選択するか時間を確認してください。', 'error');
+    return;
+  }
+  try{
+    await apiGet('approveShift',{row:s.row,roomId:roomId||'',roomName:room?.name||''});
+    toast('承認しました','success'); closeModal('m-approve');
+    const updated={...s,status:'approved',roomId:roomId||'',roomName:room?.name||''};
+    const idx=S.approvedShifts.findIndex(x=>x.row===s.row);
+    if(idx>=0)S.approvedShifts[idx]=updated; else S.approvedShifts.push(updated);
+    S.pendingShifts=S.pendingShifts.filter(x=>x.row!==s.row); updatePendingBadge(); await loadApproval();
+  }catch(e){toast('承認エラー: '+e.message,'error');}
+}
+
+function openBulkApproveModal(){
+  const targets=S.currentShifts.filter(s=>s.status==='pending'&&(S.checkedRows.size===0||S.checkedRows.has(s.row)));
+  if(!targets.length){toast('未承認シフトがありません','error');return;}
+  const c=document.getElementById('bulk-list'); c.innerHTML='';
+  targets.forEach(s=>{
+    const div=document.createElement('div');
+    div.style.cssText='background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center';
+    div.innerHTML=`<div><div style="font-weight:600;font-size:13px">${s.therapist}</div><div style="font-size:12px;color:var(--text2);font-family:var(--mono)">${fmtShiftTime(s.date,s.startTime,s.endTime)}</div></div>
+      <select id="bulk-room-${s.row}" style="width:110px;font-size:12px;padding:5px 8px" onchange="checkBulkConflicts()"><option value="">未割当</option>${S.rooms.filter(r=>r.active).map(r=>`<option value="${r.id}"${String(s.roomId)===String(r.id)?'selected':''}>${r.name}</option>`).join('')}</select>`;
+    c.appendChild(div);
+  });
+  document.getElementById('m-bulk').classList.remove('hidden');
+}
+function checkBulkConflicts(){
+  const targets=S.currentShifts.filter(s=>s.status==='pending'&&(S.checkedRows.size===0||S.checkedRows.has(s.row)));
+  const warn=document.getElementById('bulk-conflict-warn');
+  const conflicts=[];
+  // 各ターゲットのルーム選択をチェック
+  targets.forEach(s=>{
+    const roomId=document.getElementById('bulk-room-'+s.row)?.value||'';
+    if(!roomId) return;
+    // 他のターゲット自身との重複も考慮
+    if(hasRoomConflict(roomId, s, s.row)) conflicts.push(s.therapist+' '+fmtShiftTime(s.date,s.startTime,s.endTime));
+  });
+  if(conflicts.length){
+    warn.textContent='⛔ 以下のシフトでルーム競合（30分インターバル）があります：'+conflicts.join('、');
+  } else {
+    warn.style.display='none';
+  }
+  return conflicts.length === 0;
+}
+
+async function confirmBulkApprove(){
+  if(!checkBulkConflicts()){
+    toast('⛔ ルームの競合を解消してから承認してください', 'error');
+    return;
+  }
+  const targets=S.currentShifts.filter(s=>s.status==='pending'&&(S.checkedRows.size===0||S.checkedRows.has(s.row)));
+  const rows=targets.map(s=>{ const roomId=document.getElementById('bulk-room-'+s.row)?.value||''; const room=S.rooms.find(r=>String(r.id)===String(roomId)); return{row:s.row,roomId,roomName:room?.name||''}; });
+  try{
+    const res=await apiGet('approveBulk',{rows}); toast(`${res.count}件承認しました`,'success'); closeModal('m-bulk');
+    rows.forEach(item=>{ const s=S.currentShifts.find(x=>x.row===item.row); if(s){ const upd={...s,status:'approved',roomId:item.roomId,roomName:item.roomName}; const idx=S.approvedShifts.findIndex(x=>x.row===item.row); if(idx>=0)S.approvedShifts[idx]=upd; else S.approvedShifts.push(upd); } });
+    S.pendingShifts=S.pendingShifts.filter(x=>!rows.some(r=>r.row===x.row));
+    S.checkedRows.clear(); updatePendingBadge(); renderAdminCal(); await loadApproval();
+  }catch(e){toast('一括承認エラー: '+e.message,'error');}
+}
+
+function openRejectModal(row){ const s=S.currentShifts.find(x=>x.row===row); if(!s)return; S.rejectTarget=s; document.getElementById('reject-info').textContent=`${s.therapist} / ${fmtShiftTime(s.date,s.startTime,s.endTime)}`; document.getElementById('reject-reason').value=''; document.getElementById('m-reject').classList.remove('hidden'); }
+async function confirmReject(){ const s=S.rejectTarget; const reason=document.getElementById('reject-reason').value; try{ await apiGet('rejectShift',{row:s.row,reason}); toast('却下しました','success'); closeModal('m-reject'); S.pendingShifts=S.pendingShifts.filter(x=>x.row!==s.row); updatePendingBadge(); await loadApproval(); }catch(e){toast('却下エラー: '+e.message,'error');} }
+
+// カレンダーチップタップ：操作選択ポップアップを開く
+let S_calActionRow = null;
+function openCalAction(row){
+  const s = S.currentShifts.find(x=>x.row===row)
+         || S.approvedShifts.find(x=>x.row===row)
+         || S.pendingShifts.find(x=>x.row===row);
+  if(!s) return;
+  S_calActionRow = row;
+  const statusLabel = s.status==='pending' ? '⏳ 未承認' : s.status==='approved' ? '✅ 確定' : s.status;
+  document.getElementById('cal-action-info').innerHTML =
+    '<strong>'+s.therapist+'</strong>　<span style="font-size:11px;opacity:.7">'+statusLabel+'</span><br>'+
+    fmtShiftTime(s.date, s.startTime, s.endTime)+
+    (s.roomName ? '<br>🚪 '+s.roomName : '')+
+    (s.memo ? '<br>📝 '+s.memo : '');
+  // 未承認の時だけ承認ボタンを表示
+  document.getElementById('cal-action-approve-btn').style.display = s.status==='pending' ? '' : 'none';
+  document.getElementById('m-cal-action').classList.remove('hidden');
+}
+function calActionEdit(){
+  closeModal('m-cal-action');
+  openEditModal(S_calActionRow);
+}
+async function calActionApprove(){
+  closeModal('m-cal-action');
+  // 承認モーダルを開く（ルーム選択付き）
+  const s = S.pendingShifts.find(x=>x.row===S_calActionRow)
+         || S.currentShifts.find(x=>x.row===S_calActionRow);
+  if(!s){ toast('シフトが見つかりません','error'); return; }
+  S.approveTarget = s;
+  document.getElementById('approve-info').innerHTML =
+    '<b>'+s.therapist+'</b><br>'+fmtShiftTime(s.date,s.startTime,s.endTime);
+  populateRoomSelect('approve-room', s.roomId, getCastShop(s.therapist));
+  document.getElementById('m-approve').classList.remove('hidden');
+}
+async function calActionDelete(){
+  closeModal('m-cal-action');
+  await doDeleteShift(S_calActionRow);
+}
+
+function openEditModal(row){
+  // currentShifts → approvedShifts の順で検索
+  const s = S.currentShifts.find(x=>x.row===row) || S.approvedShifts.find(x=>x.row===row);
+  if(!s) return;
+  S.editTarget = s;
+  document.getElementById('edit-date').value  = s.date.replace(/\//g,'-');
+  document.getElementById('edit-start').value  = s.startTime;
+  document.getElementById('edit-end').value    = s.endTime;
+  document.getElementById('edit-memo').value   = s.memo || '';
+  populateRoomSelect('edit-room', s.roomId, getCastShop(s.therapist));
+  document.getElementById('m-edit').classList.remove('hidden');
+}
+async function confirmEdit(){
+  const s      = S.editTarget;
+  const date   = document.getElementById('edit-date').value;
+  const start  = document.getElementById('edit-start').value;
+  const end    = document.getElementById('edit-end').value;
+  const memo   = document.getElementById('edit-memo').value.trim();
+  const roomId = document.getElementById('edit-room').value;
+  const room   = S.rooms.find(r=>String(r.id)===String(roomId));
+  try{
+    await apiGet('updateShift',{row:s.row,date,startTime:start,endTime:end,roomId:roomId||'',roomName:room?.name||'',memo});
+    toast('変更しました（LINE通知済み）','success');
+    closeModal('m-edit');
+    const upd={...s,date:date.replace(/-/g,'/'),startTime:start,endTime:end,roomId:roomId||'',roomName:room?.name||'',memo};
+    const idx=S.approvedShifts.findIndex(x=>x.row===s.row);
+    if(idx>=0) S.approvedShifts[idx]=upd;
+    renderAdminCal();
+    await loadApproval();
+  }catch(e){toast('変更エラー: '+e.message,'error');}
+}
+
+async function doDeleteShift(row){
+  if(!confirm('このシフトを削除しますか？')) return;
+  try{
+    await apiGet('deleteShift', {row});
+    toast('削除しました', 'success');
+    // キャッシュから除去
+    S.approvedShifts = S.approvedShifts.filter(x=>x.row!==row);
+    S.pendingShifts  = S.pendingShifts.filter(x=>x.row!==row);
+    S.currentShifts  = S.currentShifts.filter(x=>x.row!==row);
+    updatePendingBadge();
+    // GASから最新データを取得してrow番号を更新（行ズレ対策）
+    await reloadShifts();
+    renderAdminCal();
+  }catch(e){ toast('削除エラー: '+e.message, 'error'); }
+}
+
+// シフトデータを最新化（削除・承認後のrow番号ズレ対策）
+async function reloadShifts(){
+  try{
+    const today = new Date(); today.setDate(today.getDate()-90);
+    const cutoff = today.toISOString().slice(0,10);
+    const [approved, pending] = await Promise.all([
+      sbSelect('shifts', {eq:{status:'approved'}, gte:{date:cutoff}, order:'date'}),
+      sbSelect('shifts', {eq:{status:'pending'}, order:'date'}),
+    ]);
+    S.approvedShifts = approved.map(sbShiftFmt);
+    S.pendingShifts  = pending.map(sbShiftFmt);
+    await loadApproval();
+  }catch(e){ console.error('reloadShifts error:', e); }
+}
+
+function openSpecialModal(){ document.getElementById('sp-name').value=''; document.getElementById('sp-memo').value=''; document.getElementById('sp-date').value=new Date().toISOString().slice(0,10); document.getElementById('sp-start').value='10:00'; document.getElementById('sp-end').value='19:00'; populateRoomSelect('sp-room',''); document.getElementById('m-special').classList.remove('hidden'); }
+async function confirmSpecial(){ const name=document.getElementById('sp-name').value.trim(); const date=document.getElementById('sp-date').value; const start=document.getElementById('sp-start').value; const end=document.getElementById('sp-end').value; const memo=document.getElementById('sp-memo').value; const roomId=document.getElementById('sp-room').value; const room=S.rooms.find(r=>String(r.id)===String(roomId)); if(!name||!date||!start||!end){toast('必須項目を入力してください','error');return;} try{ await apiGet('addSpecialShift',{therapist:name,date,startTime:start,endTime:end,memo,roomId:roomId||'',roomName:room?.name||''}); toast('登録しました','success'); closeModal('m-special'); await reloadShifts(); renderAdminCal(); }catch(e){toast('登録エラー: '+e.message,'error');} }
+
+// ── 未提出者 ──────────────────────────────
+async function loadReminder(){
+  try{
+    const res=await apiGet('getUnsubmittedCasts');
+    document.getElementById('st-unsub').textContent=(res.unsubmitted||[]).length;
+    document.getElementById('st-sub').textContent=(res.submitted||[]).length;
+    document.getElementById('st-week').textContent=res.weekLabel||'';
+    const unEl=document.getElementById('unsub-list');
+    unEl.innerHTML=res.unsubmitted.length?res.unsubmitted.map(c=>`<span class="chip">${c.name}<button class="btn btn-yellow btn-sm" style="padding:2px 8px;font-size:11px" onclick="sendOne('${c.userId}','${c.name}')">送信</button></span>`).join(''):'<span style="color:var(--green)">✅ 全員提出済みです</span>';
+    document.getElementById('sub-list').innerHTML=res.submitted.length?res.submitted.map(n=>`<span class="chip" style="color:var(--green)">${n}</span>`).join(''):'<span style="color:var(--text3)">なし</span>';
+  }catch(e){toast('取得エラー: '+e.message,'error');}
+}
+async function sendOne(userId,name){
+  if(!userId){ toast(name+' さんはLINE未登録です','error'); return; }
+  const msg = '【シフト提出のお願い】\n' + name + ' さん、来週のシフトがまだ提出されていません。\nシフト提出をお願いします。';
+  try{ await apiGet('sendLineMessage',{userId,message:msg}); toast(name+' さんに送信しました','success'); }catch(e){toast('送信エラー: '+e.message,'error');}
+}
+async function sendBulkReminder(){
+  if(!confirm('未提出者全員にリマインダーを送信しますか？')) return;
+  try{
+    const res = await apiGet('getUnsubmittedCasts');
+    const targets = (res.unsubmitted||[]).filter(c=>c.userId);
+    let sent = 0;
+    for(const c of targets){
+      const msg = '【シフト提出のお願い】\n' + c.name + ' さん、来週のシフトがまだ提出されていません。\nシフト提出をお願いします。';
+      await apiGet('sendLineMessage',{userId:c.userId, message:msg});
+      sent++;
+    }
+    toast(sent+'件送信しました','success');
+    if(targets.length < (res.unsubmitted||[]).length){
+      toast('LINE未登録のキャストは送信できませんでした','info');
+    }
+  }catch(e){toast('送信エラー: '+e.message,'error');}
+}
+
+// ── 給料管理 ──────────────────────────────
+// 給料 = ポイント合計 × キャスト毎のbackRate
+
+async function loadPayroll(){
+  const month = document.getElementById('pay-month')?.value || '';
+  try{
+    const res = await apiGet('getPayroll', {month});
+    S.payrollData = Array.isArray(res) ? res : (res.result || []);
+    renderPayrollTable(month);
+  }catch(e){ toast('給料取得エラー: '+e.message,'error'); }
+}
+
+function renderPayrollTable(month){
+  const tbody = document.getElementById('payroll-body');
+  tbody.innerHTML = '';
+  S.dpPoints  = {};
+  S.backRates = {};
+  S.dpAmounts = {};
+
+  const allCasts = S.casts.filter(c => c.name && c.name !== '管理者');
+  if(!allCasts.length){
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">キャストが登録されていません</td></tr>';
+    return;
+  }
+
+  allCasts.forEach((cast, idx) => {
+    const data = S.payrollData.find(d => d.name === cast.name) || {};
+    const cid  = 'cr' + idx;
+
+    // バック率（キャストマスタの値 or デフォルト30%）
+    const backRate = (cast.backRate !== undefined && cast.backRate !== null) ? Number(cast.backRate) : 0.3;
+    const backPct  = Math.round(backRate * 100);
+    S.backRates[cid] = backRate;
+
+    // 日当ポイント（GASから集計済み）
+    const dpPts1 = Number(data.dpPts1) || 0;
+    const dpPts2 = Number(data.dpPts2) || 0;
+    S.dpPoints[cid] = { dp1: dpPts1, dp2: dpPts2 };
+
+    // 保存済みポイント（GASのポイントシートから）
+    const savedPts1 = Number(data.savedPts1) || 0;
+    const savedPts2 = Number(data.savedPts2) || 0;
+
+    const ptLabel = {'daily':'日払い','weekly':'週払い','normal':'通常'}[cast.payType]||cast.payType;
+    const ptClass = {'daily':'pay-daily','weekly':'pay-weekly','normal':'pay-normal'}[cast.payType]||'pay-normal';
+
+    const escName     = (cast.name     || '').replace(/'/g,"\\'");
+    const escRealName = (cast.realName || '').replace(/'/g,"\\'");
+
+    // 日当金額（ポイントではなく金額で保持）
+    const dpAmt1 = Math.floor(dpPts1 * backRate); // 前半日当金額
+    const dpAmt2 = Math.floor(dpPts2 * backRate); // 後半日当金額
+    S.dpAmounts[cid] = { amt1: dpAmt1, amt2: dpAmt2 };
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="pr-cast-name">${data.realName || cast.realName || '-'}</div>
+        <div class="pr-real-name">${cast.name}</div>
+      </td>
+      <td><span class="pay-type-badge ${ptClass}">${ptLabel}</span></td>
+      <td style="font-family:var(--mono);color:var(--text2)">${backPct}%</td>
+      <td class="pr-half1">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="pr-mark h1">前</span>
+          <input type="number" class="pr-pts-input" id="${cid}_pts1"
+            value="${savedPts1 || ''}" placeholder="0" min="0"
+            oninput="calcPayRow('${cid}')">
+        </div>
+      </td>
+      <td class="pr-half2">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="pr-mark h2">後</span>
+          <input type="number" class="pr-pts-input" id="${cid}_pts2"
+            value="${savedPts2 || ''}" placeholder="0" min="0"
+            oninput="calcPayRow('${cid}')">
+        </div>
+      </td>
+      <td style="text-align:right;padding-right:10px">
+        <span class="pr-num" id="${cid}_pts_total" style="color:var(--yellow);font-weight:700">-</span>
+      </td>
+      <td style="color:var(--red)">
+        <div style="font-size:12px">
+          <div><span class="pr-mark h1" style="font-size:9px">前</span><span id="${cid}_dpamt1">−</span></div>
+          <div><span class="pr-mark h2" style="font-size:9px">後</span><span id="${cid}_dpamt2">−</span></div>
+        </div>
+      </td>
+      <td><span class="pr-num" id="${cid}_pay1" style="color:#5b8def;font-weight:600">-</span></td>
+      <td><span class="pr-num" id="${cid}_pay2" style="color:#3dd68c;font-weight:600">-</span></td>
+      <td style="background:rgba(245,165,36,.04);text-align:center">
+        <span class="pr-num" id="${cid}_paytotal" style="font-size:15px;color:var(--yellow);font-weight:700">-</span>
+      </td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <button class="btn btn-green btn-sm" id="${cid}_savebtn"
+            onclick="savePayrollPoints('${cid}','${escName}')">💾 保存</button>
+          <button class="btn btn-primary btn-sm"
+            onclick="writePayslip('${cid}','${escName}','${escRealName}')">📄 明細</button>
+          <button class="btn btn-purple btn-sm"
+            onclick="openDailyPayModal('${escName}','${escRealName}','${cid}')">日当入力</button>
+          <button class="btn btn-ghost btn-sm"
+            onclick="openDailyHist('${escName}','${month||''}')">履歴</button>
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+    calcPayRow(cid);
+  });
+}
+
+// ポイント入力 → リアルタイム計算
+// 合計pt = 入力前半pt + 入力後半pt（日当ポイントは含めない）
+// 前半給料 = 入力前半pt × バック率 − 前半日当金額
+// 後半給料 = 入力後半pt × バック率 − 後半日当金額
+// 給料合計 = 前半給料 + 後半給料
+function calcPayRow(cid){
+  const pts1     = parseInt(document.getElementById(cid+'_pts1')?.value) || 0;
+  const pts2     = parseInt(document.getElementById(cid+'_pts2')?.value) || 0;
+  const backRate = S.backRates[cid]  || 0.3;
+  const dpAmt    = S.dpAmounts[cid]  || {amt1:0, amt2:0};
+
+  // 合計ポイント（入力のみ）
+  const pTotal = pts1 + pts2;
+
+  // 給料ベース = 入力pt × バック率
+  const payBase1 = Math.floor(pts1 * backRate);
+  const payBase2 = Math.floor(pts2 * backRate);
+
+  // 日当控除後の給料（マイナスは0止め）
+  const pay1 = payBase1 - dpAmt.amt1;
+  const pay2 = payBase2 - dpAmt.amt2;
+
+  const el = id => document.getElementById(cid+'_'+id);
+  if(el('pts_total')) el('pts_total').textContent = pTotal.toLocaleString() + ' pt';
+  // 日当金額表示（前半・後半）
+  if(el('dpamt1')) el('dpamt1').textContent = dpAmt.amt1 > 0 ? dpAmt.amt1.toLocaleString()+'円' : '−';
+  if(el('dpamt2')) el('dpamt2').textContent = dpAmt.amt2 > 0 ? dpAmt.amt2.toLocaleString()+'円' : '−';
+  if(el('pay1'))      el('pay1').textContent      = pay1.toLocaleString() + '円';
+  if(el('pay2'))      el('pay2').textContent      = pay2.toLocaleString() + '円';
+  if(el('paytotal'))  el('paytotal').textContent  = (pay1+pay2).toLocaleString() + '円';
+}
+
+// ポイント保存（前半・後半のポイントをGASに保存）
+async function savePayrollPoints(cid, castName){
+  const pts1 = parseInt(document.getElementById(cid+'_pts1')?.value) || 0;
+  const pts2 = parseInt(document.getElementById(cid+'_pts2')?.value) || 0;
+  const month = document.getElementById('pay-month')?.value || '';
+  const btn   = document.getElementById(cid+'_savebtn');
+  if(btn){ btn.disabled=true; btn.textContent='保存中…'; }
+  try{
+    await apiGet('savePayrollPoints', { castName, pts1, pts2, month });
+    toast(castName+' のポイントを保存しました', 'success');
+    // キャッシュのpayrollDataを更新
+    const d = S.payrollData.find(d=>d.name===castName);
+    if(d){ d.pts1=pts1; d.pts2=pts2; }
+    calcPayRow(cid); // 再計算
+  }catch(e){ toast('保存エラー: '+e.message, 'error'); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='💾 保存'; } }
+}
+
+// 日当入力モーダル
+function openDailyPayModal(name, realName, cid){
+  S.dpTarget = {name, realName, cid: cid||''};
+  document.getElementById('dp-cast-info').innerHTML=`<strong>${name}</strong>　<span style="color:var(--text2)">${realName||''}</span>`;
+  document.getElementById('dp-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('dp-points').value='';
+  document.getElementById('dp-amount-disp').style.display='none';
+  document.getElementById('m-dailypay').classList.remove('hidden');
+}
+function calcDailyAmount(){
+  const pts  = parseInt(document.getElementById('dp-points').value)||0;
+  const date = document.getElementById('dp-date').value;
+  if(!pts){ document.getElementById('dp-amount-disp').style.display='none'; return; }
+  // バック率：cidがあれば対象キャストの率、なければ30%
+  const cid      = S.dpTarget?.cid || '';
+  const backRate = (cid && S.backRates[cid]) ? S.backRates[cid] : 0.3;
+  const amount   = Math.floor(pts * backRate);
+  const day      = date ? new Date(date).getDate() : 0;
+  const half     = day ? (day<=15 ? '前半（1〜15日）' : '後半（16〜末日）') : '';
+  document.getElementById('dp-amount').textContent    = amount.toLocaleString();
+  document.getElementById('dp-half').textContent     = half;
+  document.getElementById('dp-rate-disp').textContent = 'バック率 ' + Math.round(backRate*100) + '% (' + pts.toLocaleString() + 'pt × ' + Math.round(backRate*100) + '%)';
+  document.getElementById('dp-amount-disp').style.display = 'block';
+}
+async function confirmDailyPay(){
+  const c=S.dpTarget;
+  const date=document.getElementById('dp-date').value;
+  const points=parseInt(document.getElementById('dp-points').value)||0;
+  if(!date){toast('日付を入力してください','error');return;}
+  if(!points||points<=0){toast('ポイントを入力してください','error');return;}
+  try{
+    const res=await apiGet('addDailyPay',{name:c.name,realName:c.realName||'',date,points});
+    toast(`日当確定：${points}pt（${res.half}）`,'success');
+    closeModal('m-dailypay');
+    await loadPayroll();
+  }catch(e){toast('日当エラー: '+e.message,'error');}
+}
+
+// 日当履歴モーダル
+async function openDailyHist(name, month){
+  document.getElementById('dailyhist-title').textContent=name+' の日当履歴';
+  document.getElementById('m-dailyhist').classList.remove('hidden');
+  const tbody=document.getElementById('dailyhist-body');
+  tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text3)">読み込み中…</td></tr>';
+  try{
+    const pays=await apiGet('getDailyPays',{name,month});
+    tbody.innerHTML='';
+    if(!pays.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text3)">日当記録がありません</td></tr>';return;}
+    // キャストのバック率を取得（amount=0の旧データ用フォールバック計算に使用）
+    const castInfo  = S.casts.find(c => c.name === name);
+    const backRate  = castInfo?.backRate ?? 0.3;
+
+    pays.forEach(p=>{
+      // amount=0（旧データ）はポイント×バック率でフロント計算
+      const dispAmt = (p.amount > 0) ? p.amount : Math.floor(p.points * backRate);
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="font-family:var(--mono)">${p.date}</td>
+        <td><span class="badge" style="background:${p.half==='前半'?'rgba(91,141,239,.2)':'rgba(61,214,140,.2)'};color:${p.half==='前半'?'var(--accent)':'var(--green)'}">${p.half}</span></td>
+        <td class="pts-num">${p.points.toLocaleString()}pt</td>
+        <td class="pts-num">${dispAmt.toLocaleString()}円</td>
+        <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteDailyPay(${p.row},'${name}','${month}')">削除</button></td>`;
+      tbody.appendChild(tr);
+    });
+  }catch(e){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--red)">取得エラー</td></tr>';}
+}
+async function deleteDailyPay(row,name,month){ if(!confirm('この日当記録を削除しますか？'))return; try{ await apiGet('deleteDailyPay',{row}); toast('削除しました','success'); await openDailyHist(name,month); await loadPayroll(); }catch(e){toast('削除エラー','error');} }
+
+// ── キャスト管理 ──────────────────────────
+async function renderCastTable(){
+  try{
+    S.casts=await apiGet('getCasts');
+    const tbody=document.getElementById('cast-body'); tbody.innerHTML='';
+
+    if(!S.casts.length){
+      tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">キャストが登録されていません</td></tr>';
+      return;
+    }
+
+    S.casts.forEach(c=>{
+      const ptLabel={'daily':'日払い','weekly':'週払い','normal':'通常'}[c.payType]||c.payType;
+      const ptClass={'daily':'pay-daily','weekly':'pay-weekly','normal':'pay-normal'}[c.payType]||'pay-normal';
+      const tr=document.createElement('tr');
+      const editKey = c.userId ? c.userId : ('__name__'+c.name);
+
+      const backPct = c.backRate !== undefined ? Math.round(c.backRate*100) : 30;
+      const pwMask  = c.password ? '••••••' : '-';
+      tr.innerHTML=`
+        <td style="font-family:var(--mono);color:var(--text3);text-align:center;font-size:12px">${c.sortOrder && c.sortOrder!==9999 ? c.sortOrder : '-'}</td>
+        <td><strong>${c.name||'（未設定）'}</strong></td>
+        <td style="color:var(--text3)">${c.realName||'-'}</td>
+        <td style="color:var(--text2);font-size:12px">${c.shop||'-'}</td>
+        <td><span class="pay-type-badge ${ptClass}">${ptLabel}</span></td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--text3)">${c.loginId||'-'}</td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--text3)">${pwMask}</td>
+        <td style="font-family:var(--mono);font-weight:600;color:var(--accent)">${backPct}%</td>
+        <td><span style="color:${c.showPayroll!==false?'var(--green)':'var(--text3)'}">${c.showPayroll!==false?'表示':'非表示'}</span></td>
+        <td style="color:var(--text2);font-size:12px">${c.referrer||'-'}</td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="openCastModal('${editKey}')">編集</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="doDeleteCast('${c.name}')">削除</button>
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+
+
+  }catch(e){toast('取得エラー: '+e.message,'error');}
+}
+function openCastModal(key=''){
+  const c=key?S.casts.find(x=>x.userId===key||(x.userId===''&&'__name__'+x.name===key)):null;
+  S.castTarget=c||null;
+  document.getElementById('cast-modal-title').textContent=c?'キャスト編集':'キャスト登録';
+  document.getElementById('cast-name').value=c?.name||'';
+  document.getElementById('cast-realname').value=c?.realName||'';
+  document.getElementById('cast-loginid').value=c?.loginId||'';
+  document.getElementById('cast-password').value=c?.password||'';
+  document.getElementById('cast-paytype').value=c?.payType||'normal';
+  document.getElementById('cast-backrate').value=c?.backRate!==undefined ? Math.round(c.backRate*100) : 30;
+  document.getElementById('cast-uid').value=c?.userId||'';
+  document.getElementById('cast-uid').readOnly=!!(c&&c.userId);
+  document.getElementById('cast-showpayroll').value = (c?.showPayroll!==false) ? 'true' : 'false';
+  // 紹介者セレクトを更新
+  refreshReferrerSelects();
+  document.getElementById('cast-referrer').value    = c?.referrer   || '';
+  document.getElementById('cast-sort-order').value  = (c?.sortOrder && c.sortOrder !== 9999) ? c.sortOrder : '';
+  populateShopSelects();
+  document.getElementById('cast-shop').value          = c?.shop || '';
+  const br=c?.backRate!==undefined ? Math.round(Number(c.backRate)*100) : 30;
+  document.getElementById('cast-backrate').value=br;
+  document.getElementById('m-cast').classList.remove('hidden');
+}
+async function confirmCast(){
+  const name       = document.getElementById('cast-name').value.trim();
+  const realName   = document.getElementById('cast-realname').value.trim();
+  const loginId    = document.getElementById('cast-loginid').value.trim();
+  const password   = document.getElementById('cast-password').value.trim();
+  const payType    = document.getElementById('cast-paytype').value;
+  const userId     = document.getElementById('cast-uid').value.trim();
+  const backRatePct= parseFloat(document.getElementById('cast-backrate')?.value)||30;
+  const backRate   = backRatePct / 100;
+  const showPayroll= document.getElementById('cast-showpayroll')?.value !== 'false';
+  const referrer   = document.getElementById('cast-referrer')?.value || '';
+  const sortOrderVal = document.getElementById('cast-sort-order')?.value;
+  const sortOrder  = sortOrderVal !== '' ? parseInt(sortOrderVal) : 9999;
+  const shop       = document.getElementById('cast-shop')?.value.trim() || '';
+  if(!name){toast('源氏名を入力してください','error');return;}
+  try{
+    await apiGet('saveCast',{name,realName,loginId,password,payType,userId,backRate,showPayroll,referrer,sortOrder,shop});
+    toast('保存しました','success'); closeModal('m-cast'); await renderCastTable();
+  }catch(e){toast('保存エラー: '+e.message,'error');}
+}
+async function doDeleteCast(name){ if(!confirm(name+' を削除しますか？'))return; try{ await apiGet('deleteCast',{name}); toast('削除しました','success'); await renderCastTable(); }catch(e){toast('削除エラー','error');} }
+
+// ── ルームマスタ ──────────────────────────
+// ── 店舗マスタ ──────────────────────────
+// 店舗セレクトを全てのセレクト要素に反映
+function populateShopSelects(){
+  ['cast-shop','rm-shop'].forEach(id=>{
+    const sel = document.getElementById(id); if(!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">未設定</option>';
+    S.shops.filter(s=>s.active).forEach(s=>{
+      const opt=document.createElement('option');
+      opt.value=s.name; opt.textContent=s.name;
+      if(s.name===cur) opt.selected=true;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+async function renderShopTable(){
+  try{
+    S.shops = await apiGet('getShopMaster');
+    populateShopSelects();
+    const tbody=document.getElementById('shop-body'); if(!tbody) return;
+    tbody.innerHTML='';
+    if(!S.shops.length){
+      tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">店舗が登録されていません</td></tr>';
+      return;
+    }
+    S.shops.forEach(s=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="font-family:var(--mono)">${s.id}</td>
+        <td><strong>${s.name}</strong></td>
+        <td style="font-family:var(--mono)">${s.order}</td>
+        <td><span style="color:${s.active?'var(--green)':'var(--red)'}">${s.active?'有効':'無効'}</span></td>
+        <td><div style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="openShopModal(${s.row})">編集</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="doDeleteShop(${s.row})">削除</button>
+        </div></td>`;
+      tbody.appendChild(tr);
+    });
+  }catch(e){toast('店舗取得エラー: '+e.message,'error');}
+}
+
+let S_shopTarget=null;
+function openShopModal(row=0){
+  const s=row ? S.shops.find(x=>x.row===row) : null;
+  S_shopTarget=s||null;
+  document.getElementById('shop-modal-title').textContent=s?'店舗編集':'店舗追加';
+  document.getElementById('sh-name').value=s?.name||'';
+  document.getElementById('sh-name').readOnly=false;
+  document.getElementById('sh-order').value=s?.order||S.shops.length+1;
+  document.getElementById('sh-active').value=s?.active!==false?'true':'false';
+  document.getElementById('m-shop').classList.remove('hidden');
+}
+async function confirmShop(){
+  const name  =document.getElementById('sh-name').value.trim();
+  const order =parseInt(document.getElementById('sh-order').value)||1;
+  const active=document.getElementById('sh-active').value!=='false';
+  if(!name){toast('店舗名を入力してください','error');return;}
+  const params={name,order,active};
+  if(S_shopTarget) params.row=S_shopTarget.row;
+  try{
+    await apiGet('saveShopMaster',params);
+    toast('保存しました','success'); closeModal('m-shop');
+    await renderShopTable();
+    buildShopTabs(); // カレンダータブも更新
+  }catch(e){toast('保存エラー: '+e.message,'error');}
+}
+async function doDeleteShop(row){
+  if(!confirm('この店舗を削除しますか？'))return;
+  try{
+    await apiGet('deleteShopMaster',{row}); toast('削除しました','success');
+    await renderShopTable(); buildShopTabs();
+  }catch(e){toast('削除エラー','error');}
+}
+
+async function renderRoomTable(){
+  try{
+    S.rooms=await apiGet('getRoomMaster');
+    const tbody=document.getElementById('room-body'); tbody.innerHTML='';
+    S.rooms.forEach(r=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="font-family:var(--mono)">${r.id}</td><td><strong>${r.name}</strong></td><td style="color:var(--text2);font-size:12px">${r.shop||'-'}</td><td style="color:var(--text3);font-size:12px">${r.desc||'-'}</td><td style="font-family:var(--mono)">${r.order}</td><td><span style="color:${r.active?'var(--green)':'var(--red)'}">${r.active?'有効':'無効'}</span></td>
+        <td><div style="display:flex;gap:4px"><button class="btn btn-ghost btn-sm" onclick="openRoomModal(${r.row})">編集</button><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="doDeleteRoom(${r.row})">削除</button></div></td>`;
+      tbody.appendChild(tr);
+    });
+  }catch(e){toast('取得エラー','error');}
+}
+function openRoomModal(row=0){
+  const r=row?S.rooms.find(x=>x.row===row):null;
+  S.roomTarget=r||null;
+  document.getElementById('rm-modal-title').textContent=r?'ルーム編集':'ルーム追加';
+  document.getElementById('rm-name').value=r?.name||'';
+  document.getElementById('rm-desc').value=r?.desc||'';
+  document.getElementById('rm-order').value=r?.order||1;
+  document.getElementById('rm-active').value=r?.active!==false?'true':'false';
+  populateShopSelects();
+  document.getElementById('rm-shop').value=r?.shop||'';
+  document.getElementById('m-room').classList.remove('hidden');
+}
+async function confirmRoom(){ const r=S.roomTarget; const shop=document.getElementById('rm-shop')?.value||''; const params={row:r?.row||0,id:r?.id||'',name:document.getElementById('rm-name').value.trim(),desc:document.getElementById('rm-desc').value.trim(),order:Number(document.getElementById('rm-order').value),active:document.getElementById('rm-active').value==='true',shop}; if(!params.name){toast('ルーム名を入力してください','error');return;} try{ await apiGet('saveRoomMaster',params); toast('保存しました','success'); closeModal('m-room'); await renderRoomTable(); }catch(e){toast('保存エラー','error');} }
+async function doDeleteRoom(row){ if(!confirm('このルームを削除しますか？'))return; try{ await apiGet('deleteRoomMaster',{row}); toast('削除しました','success'); await renderRoomTable(); }catch(e){toast('削除エラー','error');} }
+
+// ── キャスト給料確認 ──────────────────────────
+function buildMyPayMonthFilter(){
+  const sel = document.getElementById('my-pay-month');
+  if(!sel) return;
+  const now = new Date();
+  for(let i=-3; i<=2; i++){
+    const d   = new Date(now.getFullYear(), now.getMonth()+i, 1);
+    const val = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+    if(i===0) opt.selected=true;
+    sel.appendChild(opt);
+  }
+}
+
+async function loadMyCastPayroll(){
+  const month = document.getElementById('my-pay-month')?.value || '';
+  const cont  = document.getElementById('my-payroll-content');
+  cont.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">読み込み中…</div>';
+  try{
+    const res = await apiGet('getMyCastPayroll', { castName: S.castName, month });
+    if(!res.ok){
+      if(res.error === 'noshow'){
+        cont.innerHTML = '<div class="alert al-warn">給料情報は管理者にお問い合わせください</div>';
+      } else {
+        cont.innerHTML = '<div class="alert al-warn">'+res.error+'</div>';
+      }
+      return;
+    }
+    const backPct = Math.round(res.backRate * 100);
+    cont.innerHTML = `
+      <div class="alert al-info" style="margin-bottom:16px">
+        ${month.replace('-','年')}月　バック率：${backPct}%
+      </div>
+      <div class="g2" style="margin-bottom:14px">
+        <div class="stat-card">
+          <div class="stat-val" style="font-size:20px">${res.ptsTotal.toLocaleString()} pt</div>
+          <div class="stat-label">ポイント合計（前半+後半）</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:6px">
+            🔵前半 ${res.pts1.toLocaleString()}pt　🟢後半 ${res.pts2.toLocaleString()}pt
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" style="font-size:20px;color:var(--yellow)">${res.payTotal.toLocaleString()} 円</div>
+          <div class="stat-label">給料合計（日当控除後）</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:6px">
+            前半 ${res.pay1.toLocaleString()}円　後半 ${res.pay2.toLocaleString()}円
+          </div>
+        </div>
+      </div>
+      ${res.dailyTotal > 0 ? `
+      <div class="card">
+        <div class="card-hd">日当内訳</div>
+        <div style="padding:14px;display:flex;gap:20px;flex-wrap:wrap">
+          <div><span class="pr-mark h1" style="font-size:11px">前</span> 前半日当：<strong>${res.dpAmt1.toLocaleString()}円</strong></div>
+          <div><span class="pr-mark h2" style="font-size:11px">後</span> 後半日当：<strong>${res.dpAmt2.toLocaleString()}円</strong></div>
+          <div style="color:var(--red)">合計日当：<strong>${res.dailyTotal.toLocaleString()}円</strong></div>
+        </div>
+      </div>` : ''}`;
+  }catch(e){
+    cont.innerHTML='<div class="alert al-warn">取得エラー: '+e.message+'</div>';
+  }
+}
+
+// ── 管理者シフト追加 ──────────────────────
+let _asRowId = 0;
+
+function openAdminAddShiftModal(){
+  // キャスト選択を初期化
+  const sel = document.getElementById('as-cast');
+  sel.innerHTML = '<option value="">選択してください</option>';
+  S.casts.filter(c => c.name && c.name !== '管理者').forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    opt.textContent = c.name + (c.realName ? '（'+c.realName+'）' : '');
+    sel.appendChild(opt);
+  });
+  // ルーム選択を初期化
+  const asCastSel=document.getElementById('as-cast');
+  populateRoomSelect('as-room', '', asCastSel?.value ? getCastShop(asCastSel.value) : '');
+  // 行をリセットして1行追加
+  document.getElementById('as-rows').innerHTML = '';
+  
+  _asRowId = 0;
+  addAdminShiftRow();
+  document.getElementById('m-admin-shift').classList.remove('hidden');
+}
+
+function addAdminShiftRow(){
+  const id  = ++_asRowId;
+  const tom = new Date(); tom.setDate(tom.getDate() + 1);
+  const tomStr = tom.toISOString().slice(0,10);
+  const div = document.createElement('div');
+  div.className = 'shift-row';
+  div.id = 'asr-' + id;
+  div.innerHTML = `
+    <button class="shift-remove" onclick="document.getElementById('asr-${id}').remove()">✕ 削除</button>
+    <div class="shift-row-fields">
+      <div class="fg"><label>日付</label><input type="date" id="asd-${id}" value="${tomStr}"></div>
+      <div class="fg"><label>開始時間</label><select id="ass-${id}" style="font-family:var(--mono)">${buildTimeOptions('10:00')}</select></div>
+      <div class="fg"><label>終了時間</label><select id="ase-${id}" style="font-family:var(--mono)">${buildTimeOptions('19:00')}</select></div>
+    </div>
+    <div class="fg"><label>メモ（任意）</label><input type="text" id="asm-${id}" placeholder="備考など"></div>`;
+  document.getElementById('as-rows').appendChild(div);
+}
+
+async function confirmAdminAddShift(){
+  const castName = document.getElementById('as-cast').value;
+  if(!castName){ toast('キャストを選択してください', 'error'); return; }
+
+  const rows = [...document.querySelectorAll('[id^="asr-"]')];
+  if(!rows.length){ toast('日程を追加してください', 'error'); return; }
+
+  const items = [];
+  for(const row of rows){
+    const id    = row.id.slice(4);
+    const date  = document.getElementById('asd-'+id)?.value;
+    const start = document.getElementById('ass-'+id)?.value;
+    const end   = document.getElementById('ase-'+id)?.value;
+    const memo  = document.getElementById('asm-'+id)?.value.trim()||'';
+    if(!date||!start){ toast('入力が不足しています', 'error'); return; }
+    // 終了が開始以前なら翌日換算
+    const sMin = timeToMin(start);
+    let   eMin = timeToMin(end);
+    let   dispEnd = end;
+    if(eMin <= sMin){ eMin += 24*60; const nh=Math.floor(eMin/60); dispEnd=nh+':'+String(eMin%60).padStart(2,'0'); }
+    items.push({ date, startTime: start, endTime: dispEnd, memo });
+  }
+
+  const roomId  = document.getElementById('as-room').value;
+  const room    = S.rooms.find(r => String(r.id) === String(roomId));
+
+  // 30分インターバルチェック（ルーム指定がある場合）
+  if(roomId){
+    const conflicts = items.filter(item => hasRoomConflict(roomId, item, null));
+    if(conflicts.length){
+      const msgs = conflicts.map(i => i.date+' '+i.startTime+'〜'+i.endTime).join('、');
+      toast('⛔ 以下の日程でルーム競合（30分インターバル）があります：'+msgs, 'error');
+      return;
+    }
+  }
+
+  const btn = document.querySelector('#m-admin-shift .btn-green');
+  btn.disabled = true; btn.textContent = '登録中…';
+  try{
+    // 複数件をまとめて登録（GASのadminAddShiftBulkを呼ぶ）
+    const res = await apiGet('adminAddShiftBulk', {
+      castName, items,
+      roomId:   roomId   || '',
+      roomName: room?.name || ''
+    });
+    toast(`${res.count}件のシフトを${castName}さんに追加しました`, 'success');
+    closeModal('m-admin-shift');
+    await reloadShifts();
+    renderAdminCal();
+  }catch(e){ toast('登録エラー: '+e.message, 'error'); }
+  finally{ btn.disabled=false; btn.textContent='シフト追加'; }
+}
+
+// ── カレンダーからの週シフト通知 ─────────────
+// キャスト個別：その週の確定シフトをまとめて通知
+async function sendCastWeekNotify(castName, rowIds){
+  const cast = S.casts.find(c=>c.name===castName);
+  if(!cast || !cast.userId){
+    toast(castName+' さんはLINE未登録です','error'); return;
+  }
+  // シフト情報を取得
+  const myShifts = S.approvedShifts
+    .filter(s=>s.therapist===castName && rowIds.includes(String(s.row)))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  if(!myShifts.length){ toast('該当シフトなし','error'); return; }
+
+  const lines = myShifts.map(s=>{
+    const d = new Date(s.date.replace(/\//g,'-')+'T00:00:00');
+    const dow = ['日','月','火','水','木','金','土'][d.getDay()];
+    const room = s.roomName ? ' ['+s.roomName+']' : '';
+    return s.date.slice(5).replace('-','/')+'('+dow+') '+s.startTime+'〜'+s.endTime+room;
+  }).join('\n');
+
+  const msg = '【シフト確定✅】\n'+castName+' さんの今週のシフトです。\n\n'+lines+'\n\nよろしくお願いします！';
+  try{
+    await notifyLine(cast.userId, msg);
+    toast(castName+' さんに通知しました','success');
+  }catch(e){ toast('送信エラー: '+e.message,'error'); }
+}
+
+// 一括：その週シフトがあるキャスト全員に通知
+async function sendBulkWeekNotify(){
+  if(!confirm('この週にシフトがある全キャストに確定通知を送りますか？')) return;
+  const base = S.calWeekBase || getMonday(new Date());
+  const dates = [];
+  for(let i=0;i<7;i++){
+    const d=new Date(base.getTime()+i*86400000);
+    dates.push(d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0'));
+  }
+  // その週に確定シフトがあるキャストを抽出
+  const weekShifts = S.approvedShifts.filter(s=>dates.includes(s.date));
+  const castNames = [...new Set(weekShifts.map(s=>s.therapist))];
+  let sent=0, skipped=0;
+  for(const castName of castNames){
+    const cast = S.casts.find(c=>c.name===castName);
+    if(!cast||!cast.userId){ skipped++; continue; }
+    const myShifts = weekShifts.filter(s=>s.therapist===castName)
+      .sort((a,b)=>a.date.localeCompare(b.date));
+    const lines = myShifts.map(s=>{
+      const d=new Date(s.date.replace(/\//g,'-')+'T00:00:00');
+      const dow=['日','月','火','水','木','金','土'][d.getDay()];
+      const room=s.roomName?' ['+s.roomName+']':'';
+      return s.date.slice(5).replace('-','/')+'('+dow+') '+s.startTime+'〜'+s.endTime+room;
+    }).join('\n');
+    const msg='【シフト確定✅】\n'+castName+' さんの今週のシフトです。\n\n'+lines+'\n\nよろしくお願いします！';
+    await notifyLine(cast.userId, msg);
+    sent++;
+  }
+  let msg2 = sent+'件送信しました';
+  if(skipped) msg2 += '（LINE未登録'+skipped+'件はスキップ）';
+  toast(msg2, 'success');
+}
+
+// ── メモポップアップ ──────────────────────
+function showMemoPopup(event,therapist,memo){
+  const popup=document.getElementById('memo-popup');
+  document.getElementById('memo-popup-name').textContent=therapist;
+  document.getElementById('memo-popup-text').textContent=memo;
+  popup.style.display='block';
+  const x=event.clientX,y=event.clientY,vw=window.innerWidth,vh=window.innerHeight;
+  popup.style.left=Math.min(x+8,vw-252)+'px';
+  popup.style.top=Math.min(y+8,vh-100)+'px';
+  setTimeout(()=>document.addEventListener('click',closeMemoPopup,{once:true}),0);
+}
+function closeMemoPopup(){ document.getElementById('memo-popup').style.display='none'; }
+
+// ── ユーティリティ ──────────────────────
+function closeModal(id){ document.getElementById(id)?.classList.add('hidden'); }
+function statusBadge(s){ const map={pending:'未承認',approved:'確定',rejected:'却下',cancelled:'キャンセル'}; return`<span class="badge b-${s}">${map[s]||s}</span>`; }
+function fmtDateD(dateStr){
+  if(!dateStr)return'';
+  const d=new Date(dateStr.replace(/\//g,'-')+'T00:00:00');
+  return`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${DAY_NAMES[d.getDay()]})`;
+}
+// 承認画面用のシフト時刻表示: 26時以降なら "4/3(木) 14:00〜26:00" 形式
+function fmtShiftTime(date, startTime, endTime){
+  return fmtDateD(date) + ' ' + startTime + '〜' + endTime;
+}
+// shopName: 絞り込む店舗名（省略/nullで全表示）
+function populateRoomSelect(selId, currentRoomId, shopName){
+  const sel = document.getElementById(selId); if(!sel) return;
+  sel.innerHTML = '<option value="">未割当</option>';
+  let rooms = S.rooms.filter(r => r.active);
+  // 店舗名が指定されていれば絞り込み（店舗未設定のルームは常に表示）
+  if(shopName) rooms = rooms.filter(r => !r.shop || r.shop === shopName);
+  rooms.forEach(r=>{
+    const opt = document.createElement('option');
+    opt.value = r.id;
+    opt.textContent = r.name + (r.shop ? ' ('+r.shop+')' : '');
+    if(String(r.id)===String(currentRoomId)) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+
+// キャスト名から店舗名を返す
+function getCastShop(castName){
+  return S.casts.find(c=>c.name===castName)?.shop || '';
+}
+
+// ── 明細書き込み ──────────────────────────
+async function writePayslip(cid, castName, realName){
+  const month = document.getElementById('pay-month')?.value || '';
+  if(!month){ toast('月を選択してください', 'error'); return; }
+  if(!realName || realName === '-'){
+    toast('本名が登録されていません。キャスト管理で本名を設定してください', 'error');
+    return;
+  }
+  const pts1  = parseInt(document.getElementById(cid+'_pts1')?.value) || 0;
+  const pts2  = parseInt(document.getElementById(cid+'_pts2')?.value) || 0;
+  const dpAmt = S.dpAmounts[cid] || {amt1:0, amt2:0};
+  const dailyTotal = dpAmt.amt1 + dpAmt.amt2;
+
+  // 給料合計テキストから数値取得（マイナス対応）
+  const payTotalText = document.getElementById(cid+'_paytotal')?.textContent || '0';
+  const payTotal = parseInt(payTotalText.replace(/[^0-9-]/g,'')) || 0;
+
+  const btn = document.getElementById(cid+'_savebtn');
+  try{
+    const res = await apiGet('writePayslip', { realName, month, pts1, pts2, payTotal, dailyTotal });
+    if(res.ok){
+      toast('📄 ' + res.sheetName + ' に明細を書き込みました（' + res.period + '）', 'success');
+    } else {
+      toast('❌ ' + res.error, 'error');
+    }
+  }catch(e){ toast('明細エラー: ' + e.message, 'error'); }
+}
+
+// ── スタッフ管理 ──────────────────────────
+function buildStaffPayMonthFilter(){
+  const sel=document.getElementById('sp-pay-month'); if(!sel) return;
+  const now=new Date();
+  for(let i=-3;i<=2;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+    const val=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const opt=document.createElement('option');
+    opt.value=val; opt.textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+    if(i===0)opt.selected=true;
+    sel.appendChild(opt);
+  }
+}
+
+async function renderStaffTable(){
+  try{
+    S.staffs=await apiGet('getStaffs');
+    const tbody=document.getElementById('staff-body'); if(!tbody) return;
+    tbody.innerHTML='';
+    if(!S.staffs.length){
+      tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:20px">スタッフが登録されていません</td></tr>';
+      return;
+    }
+    S.staffs.forEach(s=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td><strong>${s.name}</strong></td>
+        <td style="font-family:var(--mono);color:var(--accent)">${Math.round(s.backRate*100)}%</td>
+        <td style="font-family:var(--mono)">${s.hourly.toLocaleString()}円/h</td>
+        <td><div style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="openStaffModal('${s.name}')">編集</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="doDeleteStaff('${s.name}')">削除</button>
+        </div></td>`;
+      tbody.appendChild(tr);
+    });
+    // キャストモーダルの紹介者セレクトも更新
+    refreshReferrerSelects();
+  }catch(e){toast('取得エラー: '+e.message,'error');}
+}
+
+function refreshReferrerSelects(){
+  const sel=document.getElementById('cast-referrer');
+  if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">なし</option>';
+  S.staffs.forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=s.name; opt.textContent=s.name;
+    if(s.name===cur)opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+
+let S_staffTarget=null;
+function openStaffModal(name=''){
+  const s=name?S.staffs.find(x=>x.name===name):null;
+  S_staffTarget=s||null;
+  document.getElementById('staff-modal-title').textContent=s?'スタッフ編集':'スタッフ登録';
+  document.getElementById('st-name').value=s?.name||'';
+  document.getElementById('st-name').readOnly=!!s;
+  document.getElementById('st-backrate').value=s?Math.round(s.backRate*100):10;
+  document.getElementById('st-hourly').value=s?.hourly||0;
+  document.getElementById('m-staff').classList.remove('hidden');
+}
+async function confirmStaff(){
+  const name    =document.getElementById('st-name').value.trim();
+  const backRate=parseInt(document.getElementById('st-backrate').value)||10;
+  const hourly  =parseInt(document.getElementById('st-hourly').value)||0;
+  if(!name){toast('名前を入力してください','error');return;}
+  try{
+    await apiGet('saveStaff',{name,backRate:backRate/100,hourly});
+    toast('保存しました','success'); closeModal('m-staff');
+    await renderStaffTable();
+  }catch(e){toast('保存エラー: '+e.message,'error');}
+}
+async function doDeleteStaff(name){
+  if(!confirm(name+' を削除しますか？'))return;
+  try{
+    await apiGet('deleteStaff',{name}); toast('削除しました','success');
+    await renderStaffTable();
+  }catch(e){toast('削除エラー','error');}
+}
+
+// スタッフ給料
+async function loadStaffPayroll(){
+  const month=document.getElementById('sp-pay-month')?.value||'';
+  try{
+    const res=await apiGet('getStaffPayroll',{month});
+    const tbody=document.getElementById('staff-pay-body'); if(!tbody)return;
+    tbody.innerHTML='';
+    if(!res.result.length){
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">スタッフが登録されていません</td></tr>';
+      return;
+    }
+    res.result.forEach(s=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td><strong>${s.name}</strong><div style="font-size:11px;color:var(--text3)">率${Math.round(s.backRate*100)}% / ${s.hourly.toLocaleString()}円/h</div></td>
+        <td style="text-align:center">${s.myCasts.length}人</td>
+        <td style="font-family:var(--mono)">${s.castTotal.toLocaleString()} pt</td>
+        <td style="font-family:var(--mono);color:#5b8def">${s.castPay.toLocaleString()}円</td>
+        <td style="font-family:var(--mono);color:#3dd68c">${s.hourlyPay.toLocaleString()}円<div style="font-size:11px;color:var(--text3)">${s.totalHours}h</div></td>
+        <td style="font-family:var(--mono);font-weight:700;color:var(--yellow)">${s.payTotal.toLocaleString()}円</td>
+        <td><div style="display:flex;flex-direction:column;gap:4px">
+          <button class="btn btn-purple btn-sm" onclick="openStaffDailyModal('${s.name}',${s.hourly})">日当入力</button>
+          <button class="btn btn-ghost btn-sm" onclick="openStaffDetail('${s.name}','${month}')">明細</button>
+        </div></td>`;
+      tbody.appendChild(tr);
+    });
+  }catch(e){toast('給料取得エラー: '+e.message,'error');}
+}
+
+// スタッフ日当入力
+let S_staffDailyTarget={name:'',hourly:0};
+function openStaffDailyModal(name,hourly){
+  S_staffDailyTarget={name,hourly};
+  document.getElementById('sdp-info').innerHTML='<strong>'+name+'</strong>　<span style="color:var(--text2)">時給 '+hourly.toLocaleString()+'円</span>';
+  document.getElementById('sdp-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('sdp-hours').value='';
+  document.getElementById('sdp-amount-disp').style.display='none';
+  document.getElementById('m-staff-daily').classList.remove('hidden');
+}
+function calcStaffDaily(){
+  const hours=parseFloat(document.getElementById('sdp-hours').value)||0;
+  if(!hours){document.getElementById('sdp-amount-disp').style.display='none';return;}
+  const amount=Math.floor(hours*S_staffDailyTarget.hourly);
+  document.getElementById('sdp-amount').textContent=amount.toLocaleString();
+  document.getElementById('sdp-amount-disp').style.display='block';
+}
+async function confirmStaffDaily(){
+  const date =document.getElementById('sdp-date').value;
+  const hours=parseFloat(document.getElementById('sdp-hours').value)||0;
+  if(!date){toast('日付を入力してください','error');return;}
+  if(!hours||hours<=0){toast('時間を入力してください','error');return;}
+  try{
+    const res=await apiGet('addStaffDaily',{name:S_staffDailyTarget.name,date,hours});
+    toast(S_staffDailyTarget.name+' 日当確定: '+res.amount.toLocaleString()+'円','success');
+    closeModal('m-staff-daily'); await loadStaffPayroll();
+  }catch(e){toast('日当エラー: '+e.message,'error');}
+}
+
+// スタッフ明細ポップアップ
+async function openStaffDetail(name,month){
+  document.getElementById('staff-detail-title').textContent=name+' の明細';
+  document.getElementById('m-staff-detail').classList.remove('hidden');
+  const body=document.getElementById('staff-detail-body');
+  body.innerHTML='<div style="color:var(--text3);text-align:center;padding:20px">読み込み中…</div>';
+  try{
+    // 給料データ再取得
+    const payRes=await apiGet('getStaffPayroll',{month});
+    const sData=payRes.result.find(s=>s.name===name)||{};
+    // 日当履歴
+    const dailys=await apiGet('getStaffDailys',{name,month});
+
+    let html='';
+    // キャスト別ポイント
+    if(sData.myCasts&&sData.myCasts.length){
+      html+='<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text2)">🎭 担当キャスト</div>';
+      html+='<div class="card" style="margin-bottom:14px"><div class="tw"><table><thead><tr><th>キャスト名</th><th>合計ポイント</th></tr></thead><tbody>';
+      sData.myCasts.forEach(c=>{
+        html+=`<tr><td>${c.name}</td><td style="font-family:var(--mono)">${c.pts.toLocaleString()} pt</td></tr>`;
+      });
+      html+='</tbody></table></div></div>';
+      html+=`<div style="margin-bottom:14px;font-size:13px">キャスト合計: <strong>${sData.castTotal.toLocaleString()} pt</strong> × ${Math.round(sData.backRate*100)}% = <strong style="color:#5b8def">${sData.castPay.toLocaleString()}円</strong></div>`;
+    }
+    // 日当履歴
+    if(dailys.length){
+      html+='<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text2)">⏱ 日当履歴</div>';
+      html+='<div class="card"><div class="tw"><table><thead><tr><th>日付</th><th>時間</th><th>金額</th><th>操作</th></tr></thead><tbody>';
+      dailys.forEach(d=>{
+        html+=`<tr><td style="font-family:var(--mono)">${d.date}</td><td>${d.hours}h</td><td style="font-family:var(--mono)">${d.amount.toLocaleString()}円</td>
+          <td><button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="delStaffDaily(${d.row},'${name}','${month}')">削除</button></td></tr>`;
+      });
+      html+=`</tbody></table></div></div>`;
+      html+=`<div style="margin-top:10px;font-size:13px">時給合計: <strong>${sData.totalHours}h → <span style="color:#3dd68c">${sData.hourlyPay.toLocaleString()}円</span></strong></div>`;
+    }
+    html+=`<div style="margin-top:14px;padding:12px;background:var(--bg3);border-radius:8px;font-size:14px;font-weight:700;color:var(--yellow)">給料合計: ${sData.payTotal.toLocaleString()}円</div>`;
+    body.innerHTML=html;
+  }catch(e){body.innerHTML='<div class="alert al-warn">取得エラー: '+e.message+'</div>';}
+}
+async function delStaffDaily(row,name,month){
+  if(!confirm('この日当を削除しますか？'))return;
+  try{
+    await apiGet('deleteStaffDaily',{row}); toast('削除しました','success');
+    await openStaffDetail(name,month); await loadStaffPayroll();
+  }catch(e){toast('削除エラー','error');}
+}
+
+init();
+</script>
+</body>
+</html>

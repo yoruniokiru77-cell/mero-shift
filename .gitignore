@@ -1,0 +1,8 @@
+# OneDrive一時ファイル
+*.tmp
+~$*
+desktop.ini
+Thumbs.db
+
+# OS
+.DS_Store
