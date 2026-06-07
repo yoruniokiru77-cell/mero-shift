@@ -141,18 +141,20 @@ function handleMessage(userId, text, replyToken) {
 
   // ── 本名で検索してLINE紐づけ ──
   const matched = sbGet('casts', 'real_name=eq.' + encodeURIComponent(text) + '&select=id,name,real_name,user_id');
-  if (!matched || !matched.length) {
-    reply('「' + text + '」でキャスト登録が見つかりません。\n管理者に本名の登録を依頼してから、もう一度お試しください。');
-    return;
-  }
-  if (matched[0].user_id) {
-    reply('このキャストはすでに別のLINEアカウントに紐づいています。\n管理者にご連絡ください。');
-    return;
-  }
 
-  // user_id を紐づける
-  sbPatch('casts', matched[0].id, { user_id: userId, line_name: text });
-  reply(matched[0].real_name + ' さん、LINE登録が完了しました！\n「ログイン」と送るとシフト申請画面に入れます。');
+  if (matched && matched.length) {
+    // 既存レコードに一致
+    if (matched[0].user_id) {
+      reply('このキャストはすでに別のLINEアカウントに紐づいています。\n管理者にご連絡ください。');
+      return;
+    }
+    sbPatch('casts', matched[0].id, { user_id: userId, line_name: text });
+    reply(matched[0].real_name + ' さん、LINE登録が完了しました！\n「ログイン」と送るとシフト申請画面に入れます。');
+  } else {
+    // 一致なし → 本名で新規登録（源氏名は本名と同じで仮登録）
+    sbPost('casts', { name: text, real_name: text, user_id: userId, line_name: text });
+    reply(text + ' さん、新規登録が完了しました！\n「ログイン」と送るとシフト申請画面に入れます。\n※源氏名は管理者が後で設定します。');
+  }
 }
 
 function handleFollow(userId) {
