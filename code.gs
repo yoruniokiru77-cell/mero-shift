@@ -139,26 +139,28 @@ function handleMessage(userId, text, replyToken) {
     return;
   }
 
-  // ── 本名で検索してLINE紐づけ ──
-  const matched = sbGet('casts', 'real_name=eq.' + encodeURIComponent(text) + '&select=id,name,real_name,user_id');
+  // ── パスワードで検索してLINE紐づけ ──
+  const matched = sbGet('casts', 'password=eq.' + encodeURIComponent(text) + '&select=id,name,real_name,user_id');
 
-  if (matched && matched.length) {
-    // 既存レコードに一致
-    if (matched[0].user_id) {
-      reply('このキャストはすでに別のLINEアカウントに紐づいています。\n管理者にご連絡ください。');
-      return;
-    }
-    sbPatch('casts', matched[0].id, { user_id: userId, line_name: text });
-    reply(matched[0].real_name + ' さん、LINE登録が完了しました！\n「ログイン」と送るとシフト申請画面に入れます。');
-  } else {
-    // 一致なし → 本名で新規登録（源氏名は本名と同じで仮登録）
-    sbPost('casts', { name: text, real_name: text, user_id: userId, line_name: text });
-    reply(text + ' さん、新規登録が完了しました！\n「ログイン」と送るとシフト申請画面に入れます。\n※源氏名は管理者が後で設定します。');
+  if (!matched || !matched.length) {
+    reply('パスワードが違います。\n管理者から受け取ったパスワードを入力してください。');
+    return;
   }
+  if (matched[0].user_id) {
+    reply('このアカウントはすでに別のLINEに紐づいています。\n管理者にご連絡ください。');
+    return;
+  }
+
+  // user_id を紐づけてそのままログインURLを返す
+  sbPatch('casts', matched[0].id, { user_id: userId });
+  const name  = matched[0].name;
+  const token = generateToken(userId, name);
+  const displayName = matched[0].real_name || name;
+  reply(displayName + ' さん、登録完了です！\nそのままこちらからログインしてください：\n' + FRONTEND_URL + '?token=' + token);
 }
 
 function handleFollow(userId) {
-  pushLine(userId, 'ご登録ありがとうございます！\n本名（フルネーム）をメッセージで送ってください。\n\n例：山田 花子');
+  pushLine(userId, 'ご登録ありがとうございます！\n管理者から受け取ったパスワードを入力してください。');
 }
 
 // ── doPost (LINE Webhook) ────────────────────
