@@ -521,7 +521,7 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
       <div class="page-body">
         <div class="card">
           <div class="tw"><table>
-            <thead><tr><th>順</th><th>本名</th><th>源氏名</th><th>店舗</th><th>給料種別</th><th>ログインID</th><th>パスワード</th><th>バック率</th><th>給料表示</th><th>紹介スタッフ</th><th>操作</th></tr></thead>
+            <thead><tr><th>本名</th><th>源氏名</th><th>パスワード</th><th>操作</th></tr></thead>
             <tbody id="cast-body"></tbody>
           </table></div>
         </div>
@@ -564,16 +564,6 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
     </div>
 
     <!-- 管理者：店舗マスタ -->
-    <div class="page" id="page-shops">
-      <div class="page-header"><h2>店舗マスタ</h2><button class="btn btn-primary" onclick="openShopModal()">＋ 追加</button></div>
-      <div class="page-body">
-        <div class="card"><div class="tw"><table>
-          <thead><tr><th>ID</th><th>店舗名</th><th>表示順</th><th>有効</th><th>操作</th></tr></thead>
-          <tbody id="shop-body"></tbody>
-        </table></div></div>
-      </div>
-    </div>
-
     <!-- 管理者：ルームマスタ -->
     <div class="page" id="page-rooms">
       <div class="page-header"><h2>ルームマスタ</h2><button class="btn btn-primary" onclick="openRoomModal()">＋ 追加</button></div>
@@ -723,47 +713,9 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
   <div class="modal">
     <div class="modal-hd"><h3 id="cast-modal-title">キャスト登録</h3><button class="modal-cl" onclick="closeModal('m-cast')">✕</button></div>
     <div class="modal-bd">
-      <div class="g2">
-        <div class="fg"><label>源氏名 *</label><input type="text" id="cast-name" placeholder="さくら"></div>
-        <div class="fg"><label>本名 *</label><input type="text" id="cast-realname" placeholder="山田花子"></div>
-      </div>
-      <div class="g2">
-        <div class="fg"><label>ログインID</label><input type="text" id="cast-loginid" placeholder="sakura01"></div>
-        <div class="fg"><label>パスワード</label><input type="text" id="cast-password" placeholder="pass1234"></div>
-      </div>
-      <div class="g2">
-        <div class="fg"><label>給料種別</label>
-          <select id="cast-paytype">
-            <option value="normal">通常</option>
-            <option value="daily">日払い</option>
-            <option value="weekly">週払い</option>
-          </select>
-        </div>
-        <div class="fg"><label>バック率（%）</label>
-          <input type="number" id="cast-backrate" value="30" min="0" max="100" step="1" placeholder="30">
-        </div>
-      </div>
-      <div class="fg">
-        <label>給料表示</label>
-        <select id="cast-showpayroll">
-          <option value="true">表示する</option>
-          <option value="false">表示しない</option>
-        </select>
-      </div>
-      <div class="fg">
-        <label>紹介スタッフ</label>
-        <select id="cast-referrer">
-          <option value="">なし</option>
-        </select>
-      </div>
-      <div class="fg">
-        <label>並び順（小さい数字が先頭）</label>
-        <input type="number" id="cast-sort-order" min="1" max="999" step="1" placeholder="例: 1">
-      </div>
-      <div class="fg">
-        <label>店舗</label>
-        <select id="cast-shop"><option value="">未設定</option></select>
-      </div>
+      <div class="fg"><label>本名 *</label><input type="text" id="cast-realname" placeholder="山田花子"></div>
+      <div class="fg"><label>源氏名 *</label><input type="text" id="cast-name" placeholder="さくら"></div>
+      <div class="fg"><label>パスワード</label><input type="text" id="cast-password" placeholder="pass1234"></div>
       <div class="fg" style="display:none"><label>LINE userId</label><input type="text" id="cast-uid" placeholder="U…"></div>
     </div>
     <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-cast')">キャンセル</button><button class="btn btn-primary" onclick="confirmCast()">保存</button></div>
@@ -1008,11 +960,8 @@ async function sbAction(action, params={}) {
   case 'saveCast': {
     const p = params;
     const row = {
-      name:p.name, real_name:p.realName||'', user_id:p.userId||'',
-      login_id:p.loginId||'', password:p.password||'',
-      pay_type:p.payType||'normal', back_rate:p.backRate??0.3,
-      show_payroll:p.showPayroll!==false,
-      referrer:p.referrer||'', sort_order:p.sortOrder??9999, shop:p.shop||''
+      name: p.name, real_name: p.realName||'',
+      password: p.password||'', user_id: p.userId||''
     };
     const exist = await sbSelect('casts', {eq:{name:p.name}});
     if(exist.length) {
@@ -1503,7 +1452,7 @@ async function bootApp() {
     S.calWeekBase = getMonday(new Date());
     showPage('page-calendar'); setCalView('cast');
     loadApproval(); renderAdminCal(); loadChangeRequests();
-    loadReminder(); renderCastTable(); renderStaffTable(); renderShopTable(); renderRoomTable(); buildPayMonthFilter(); buildStaffPayMonthFilter();
+    loadReminder(); renderCastTable(); renderStaffTable(); renderRoomTable(); buildPayMonthFilter(); buildStaffPayMonthFilter();
   } else {
     // 自分のキャスト情報を取得してshowPayrollを確認
     const myCast = S.casts.find(c => c.name === S.castName);
@@ -1525,7 +1474,6 @@ const NAV=[
   {id:'page-casts',      label:'キャスト',    icon:'👩',t:false,a:true},
   {id:'page-staff',      label:'スタッフ',    icon:'🧑',t:false,a:true},
   {id:'page-staff-pay',  label:'スタッフ給料',icon:'💼',t:false,a:true},
-  {id:'page-shops',      label:'店舗',        icon:'🏪',t:false,a:true},
   {id:'page-rooms',      label:'ルーム',      icon:'🚪',t:false,a:true},
 ];
 function buildNav(){
@@ -1553,7 +1501,6 @@ function showPage(id){
   if(id==='page-calendar')    renderAdminCal();
   if(id==='page-my-payroll')   loadMyCastPayroll();
   if(id==='page-staff')        renderStaffTable();
-  if(id==='page-shops')        renderShopTable();
   if(id==='page-staff-pay')    loadStaffPayroll();
   if(id==='page-payroll')  loadPayroll();
 }
@@ -2697,24 +2644,13 @@ async function renderCastTable(){
     }
 
     S.casts.forEach(c=>{
-      const ptLabel={'daily':'日払い','weekly':'週払い','normal':'通常'}[c.payType]||c.payType;
-      const ptClass={'daily':'pay-daily','weekly':'pay-weekly','normal':'pay-normal'}[c.payType]||'pay-normal';
       const tr=document.createElement('tr');
       const editKey = c.userId ? c.userId : ('__name__'+c.name);
-
-      const backPct = c.backRate !== undefined ? Math.round(c.backRate*100) : 30;
       const pwMask  = c.password ? '••••••' : '-';
       tr.innerHTML=`
-        <td style="font-family:var(--mono);color:var(--text3);text-align:center;font-size:12px">${c.sortOrder && c.sortOrder!==9999 ? c.sortOrder : '-'}</td>
         <td><strong>${c.realName||'（未設定）'}</strong></td>
         <td style="color:var(--text3)">${c.name||'-'}</td>
-        <td style="color:var(--text2);font-size:12px">${c.shop||'-'}</td>
-        <td><span class="pay-type-badge ${ptClass}">${ptLabel}</span></td>
-        <td style="font-family:var(--mono);font-size:12px;color:var(--text3)">${c.loginId||'-'}</td>
         <td style="font-family:var(--mono);font-size:12px;color:var(--text3)">${pwMask}</td>
-        <td style="font-family:var(--mono);font-weight:600;color:var(--accent)">${backPct}%</td>
-        <td><span style="color:${c.showPayroll!==false?'var(--green)':'var(--text3)'}">${c.showPayroll!==false?'表示':'非表示'}</span></td>
-        <td style="color:var(--text2);font-size:12px">${c.referrer||'-'}</td>
         <td>
           <div style="display:flex;gap:4px;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="openCastModal('${editKey}')">編集</button>
@@ -2731,42 +2667,22 @@ function openCastModal(key=''){
   const c=key?S.casts.find(x=>x.userId===key||(x.userId===''&&'__name__'+x.name===key)):null;
   S.castTarget=c||null;
   document.getElementById('cast-modal-title').textContent=c?'キャスト編集':'キャスト登録';
-  document.getElementById('cast-name').value=c?.name||'';
   document.getElementById('cast-realname').value=c?.realName||'';
-  document.getElementById('cast-loginid').value=c?.loginId||'';
+  document.getElementById('cast-name').value=c?.name||'';
   document.getElementById('cast-password').value=c?.password||'';
-  document.getElementById('cast-paytype').value=c?.payType||'normal';
-  document.getElementById('cast-backrate').value=c?.backRate!==undefined ? Math.round(c.backRate*100) : 30;
   document.getElementById('cast-uid').value=c?.userId||'';
   document.getElementById('cast-uid').readOnly=!!(c&&c.userId);
-  document.getElementById('cast-showpayroll').value = (c?.showPayroll!==false) ? 'true' : 'false';
-  // 紹介者セレクトを更新
-  refreshReferrerSelects();
-  document.getElementById('cast-referrer').value    = c?.referrer   || '';
-  document.getElementById('cast-sort-order').value  = (c?.sortOrder && c.sortOrder !== 9999) ? c.sortOrder : '';
-  populateShopSelects();
-  document.getElementById('cast-shop').value          = c?.shop || '';
-  const br=c?.backRate!==undefined ? Math.round(Number(c.backRate)*100) : 30;
-  document.getElementById('cast-backrate').value=br;
   document.getElementById('m-cast').classList.remove('hidden');
 }
 async function confirmCast(){
-  const name       = document.getElementById('cast-name').value.trim();
-  const realName   = document.getElementById('cast-realname').value.trim();
-  const loginId    = document.getElementById('cast-loginid').value.trim();
-  const password   = document.getElementById('cast-password').value.trim();
-  const payType    = document.getElementById('cast-paytype').value;
-  const userId     = document.getElementById('cast-uid').value.trim();
-  const backRatePct= parseFloat(document.getElementById('cast-backrate')?.value)||30;
-  const backRate   = backRatePct / 100;
-  const showPayroll= document.getElementById('cast-showpayroll')?.value !== 'false';
-  const referrer   = document.getElementById('cast-referrer')?.value || '';
-  const sortOrderVal = document.getElementById('cast-sort-order')?.value;
-  const sortOrder  = sortOrderVal !== '' ? parseInt(sortOrderVal) : 9999;
-  const shop       = document.getElementById('cast-shop')?.value.trim() || '';
+  const realName = document.getElementById('cast-realname').value.trim();
+  const name     = document.getElementById('cast-name').value.trim();
+  const password = document.getElementById('cast-password').value.trim();
+  const userId   = document.getElementById('cast-uid').value.trim();
+  if(!realName){toast('本名を入力してください','error');return;}
   if(!name){toast('源氏名を入力してください','error');return;}
   try{
-    await apiGet('saveCast',{name,realName,loginId,password,payType,userId,backRate,showPayroll,referrer,sortOrder,shop});
+    await apiGet('saveCast',{name,realName,password,userId});
     toast('保存しました','success'); closeModal('m-cast'); await renderCastTable();
   }catch(e){toast('保存エラー: '+e.message,'error');}
 }
