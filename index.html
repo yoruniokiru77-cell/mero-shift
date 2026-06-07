@@ -85,6 +85,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 .b-approved {background:rgba(61,214,140,.15);color:var(--green)}
 .b-rejected {background:rgba(245,69,90,.15); color:var(--red)}
 .b-cancelled{background:rgba(100,100,120,.15);color:var(--text3)}
+.b-change_requested{background:rgba(167,139,250,.15);color:var(--purple)}
 /* キャンセル行スタイル */
 tr.cancelled-row td{opacity:.45;text-decoration:line-through}
 tr.cancelled-row td:last-child{text-decoration:none;opacity:.6}
@@ -391,6 +392,17 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
           </select>
           <select id="af-cast" onchange="loadApproval()"><option value="">全キャスト</option></select>
         </div>
+        <!-- 変更申請カード -->
+        <div class="card" id="change-req-card" style="margin-bottom:16px;display:none">
+          <div class="card-hd" style="background:rgba(167,139,250,.08);border-bottom:1px solid rgba(167,139,250,.2)">
+            <span style="color:var(--purple)">🔄 変更申請</span>
+            <span id="change-req-count" class="badge b-change_requested"></span>
+          </div>
+          <div class="tw"><table>
+            <thead><tr><th>元のシフト</th><th>申請内容</th><th>キャスト</th><th>メモ</th><th>操作</th></tr></thead>
+            <tbody id="change-req-body"></tbody>
+          </table></div>
+        </div>
         <div id="pending-banner" class="alert al-warn" style="display:none"></div>
         <div class="card">
           <div class="card-hd">
@@ -579,6 +591,25 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
 </div>
 
 <nav id="mob-nav"></nav>
+
+<!-- モーダル：変更申請（キャスト側） -->
+<div class="modal-ov hidden" id="m-change-req">
+  <div class="modal">
+    <div class="modal-hd"><h3>シフト変更申請</h3><button class="modal-cl" onclick="closeModal('m-change-req')">✕</button></div>
+    <div class="modal-bd">
+      <div class="alert al-warn" style="margin-bottom:12px;font-size:12px">⚠ 管理者が承認するまで元のシフトは有効です</div>
+      <div class="fg"><label>元のシフト</label><div id="cr-orig" style="font-size:13px;color:var(--text2);padding:6px 0"></div></div>
+      <div class="fg"><label>新しい日付</label><input type="date" id="cr-date"></div>
+      <div class="fg"><label>新しい開始時間</label><select id="cr-start" style="font-family:var(--mono)"></select></div>
+      <div class="fg"><label>新しい終了時間<br><span style="font-size:10px;color:var(--text3)">（翌0〜6時は翌日扱い）</span></label><select id="cr-end" style="font-family:var(--mono)"></select></div>
+      <div class="fg"><label>申請メモ（任意）</label><input type="text" id="cr-memo" placeholder="変更理由など"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('m-change-req')">キャンセル</button>
+      <button class="btn btn-primary" style="flex:2" onclick="confirmChangeReq()">申請する</button>
+    </div>
+  </div>
+</div>
 
 <!-- モーダル：承認 -->
 <div class="modal-ov hidden" id="m-approve">
@@ -1065,6 +1096,57 @@ async function sbAction(action, params={}) {
     await sbUpdate('shifts', {status:'cancelled'}, {id:params.row});
     return {ok:true};
   }
+
+  // ── 変更申請 ────────────────────────────────
+  case 'submitChangeRequest': {
+    // 既存のpending変更申請があれば上書き
+    await sbDelete('change_requests', {shift_id:params.shiftId, status:'pending'});
+    await sbInsert('change_requests', {
+      shift_id:    params.shiftId,
+      cast_name:   params.castName,
+      new_date:    params.newDate,
+      new_start_time: params.newStart,
+      new_end_time:   params.newEnd,
+      memo:        params.memo||'',
+      status:      'pending',
+      created_at:  new Date().toISOString()
+    });
+    return {ok:true};
+  }
+  case 'getChangeRequests': {
+    const rows = await sbSelect('change_requests', {eq:{status:'pending'}, order:'created_at'});
+    return rows.map(r=>({
+      row: r.id, shiftId: r.shift_id, castName: r.cast_name,
+      newDate: r.new_date, newStart: r.new_start_time, newEnd: r.new_end_time,
+      memo: r.memo||'', createdAt: r.created_at
+    }));
+  }
+  case 'approveChangeRequest': {
+    // 元シフトを新しい日時に更新
+    await sbUpdate('shifts', {
+      date: params.newDate, start_time: params.newStart, end_time: params.newEnd
+    }, {id: params.shiftId});
+    // 変更申請をapprovedに
+    await sbUpdate('change_requests', {status:'approved'}, {id: params.row});
+    // LINE通知
+    const castRow = (await sbSelect('casts', {eq:{name:params.castName}}))[0];
+    if(castRow && castRow.user_id) {
+      await notifyLine(castRow.user_id,
+        '【変更申請 承認✅】\n' + params.castName + ' さんのシフト変更が承認されました。\n' +
+        '新しいシフト：' + params.newDate + ' ' + params.newStart + '〜' + params.newEnd);
+    }
+    return {ok:true};
+  }
+  case 'rejectChangeRequest': {
+    await sbUpdate('change_requests', {status:'rejected'}, {id: params.row});
+    // LINE通知
+    const castRow2 = (await sbSelect('casts', {eq:{name:params.castName}}))[0];
+    if(castRow2 && castRow2.user_id) {
+      await notifyLine(castRow2.user_id,
+        '【変更申請 却下❌】\n' + params.castName + ' さんのシフト変更申請は却下されました。\n元のシフトが継続されます。');
+    }
+    return {ok:true};
+  }
   case 'updateShift': {
     const upd2 = {};
     if(params.date)      upd2.date       = params.date;
@@ -1413,7 +1495,7 @@ async function bootApp() {
     // カレンダー（キャスト別）をデフォルト表示
     S.calWeekBase = getMonday(new Date());
     showPage('page-calendar'); setCalView('cast');
-    loadApproval(); renderAdminCal();
+    loadApproval(); renderAdminCal(); loadChangeRequests();
     loadReminder(); renderCastTable(); renderStaffTable(); renderShopTable(); renderRoomTable(); buildPayMonthFilter(); buildStaffPayMonthFilter();
   } else {
     // 自分のキャスト情報を取得してshowPayrollを確認
@@ -1618,15 +1700,18 @@ async function loadMyShifts(){
         const tr=document.createElement('tr');
         const isCancelled = s.status === 'cancelled';
         if(isCancelled) tr.className = 'cancelled-row';
-        const cancelBtn = (s.status === 'pending')
-          ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);font-size:11px" onclick="cancelMyShift(${s.row})">取消</button>`
-          : '';
+        let actionBtn = '';
+        if(s.status === 'pending') {
+          actionBtn = `<button class="btn btn-ghost btn-sm" style="color:var(--red);font-size:11px" onclick="cancelMyShift(${s.row})">取消</button>`;
+        } else if(s.status === 'approved') {
+          actionBtn = `<button class="btn btn-ghost btn-sm" style="color:var(--purple);font-size:11px" onclick="openChangeReqModal(${s.row},'${s.date}','${s.startTime}','${s.endTime}')">変更申請</button>`;
+        }
         tr.innerHTML=`
           <td style="white-space:nowrap">${fmtShiftTime(s.date,s.startTime,s.endTime)}</td>
           <td>${statusBadge(s.status)}</td>
           <td style="color:var(--green);font-size:12px">${s.roomName||''}</td>
           <td style="color:var(--text3);font-size:12px">${s.memo||''}</td>
-          <td>${cancelBtn}</td>`;
+          <td>${actionBtn}</td>`;
         tbody.appendChild(tr);
       });
     }
@@ -1647,6 +1732,94 @@ async function cancelMyShift(row){
     toast('シフトをキャンセルしました', 'success');
     await loadMyShifts();
   }catch(e){ toast('キャンセルエラー: '+e.message, 'error'); }
+}
+
+// ── 変更申請（キャスト側） ──────────────────────
+let _crTarget = null; // {row, date, startTime, endTime}
+function openChangeReqModal(shiftRow, date, startTime, endTime){
+  _crTarget = {shiftRow, date, startTime, endTime};
+  document.getElementById('cr-orig').textContent = fmtShiftTime(date, startTime, endTime);
+  document.getElementById('cr-date').value = date.replace(/\//g,'-');
+  document.getElementById('cr-start').innerHTML = buildTimeOptions(startTime);
+  document.getElementById('cr-end').innerHTML   = buildTimeOptions(endTime);
+  document.getElementById('cr-memo').value = '';
+  document.getElementById('m-change-req').classList.remove('hidden');
+}
+async function confirmChangeReq(){
+  const newDate  = document.getElementById('cr-date').value;
+  const newStart = document.getElementById('cr-start').value;
+  const newEnd   = document.getElementById('cr-end').value;
+  const memo     = document.getElementById('cr-memo').value.trim();
+  if(!newDate){ toast('日付を入力してください','error'); return; }
+  const sMin = timeToMin(newStart);
+  let eMin   = timeToMin(newEnd);
+  let dispEnd = newEnd;
+  if(eMin <= sMin){ eMin += 24*60; const nh=Math.floor(eMin/60); dispEnd=nh+':'+String(eMin%60).padStart(2,'0'); }
+  try{
+    await apiGet('submitChangeRequest',{
+      shiftId: _crTarget.shiftRow, castName: S.castName,
+      newDate, newStart, newEnd: dispEnd, memo
+    });
+    toast('変更申請を送信しました。管理者の承認をお待ちください','success');
+    closeModal('m-change-req');
+    await loadMyShifts();
+  }catch(e){ toast('申請エラー: '+e.message,'error'); }
+}
+
+// ── 変更申請（管理者側） ──────────────────────
+async function loadChangeRequests(){
+  try{
+    const reqs = await apiGet('getChangeRequests');
+    const card  = document.getElementById('change-req-card');
+    const tbody = document.getElementById('change-req-body');
+    const badge = document.getElementById('change-req-count');
+    if(!reqs.length){ card.style.display='none'; return; }
+    card.style.display='';
+    badge.textContent = reqs.length + '件';
+    tbody.innerHTML = '';
+    // 元シフトの日時も取得してキャッシュ
+    const shiftIds = [...new Set(reqs.map(r=>r.shiftId))];
+    const origMap = {};
+    for(const sid of shiftIds){
+      const rows = await sbSelect('shifts', {eq:{id:sid}});
+      if(rows[0]) origMap[sid] = rows[0];
+    }
+    reqs.forEach(req => {
+      const orig = origMap[req.shiftId];
+      const origText = orig
+        ? fmtShiftTime(orig.date, orig.start_time, orig.end_time)
+        : `ID:${req.shiftId}`;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="white-space:nowrap;font-size:12px;color:var(--text2)">${origText}</td>
+        <td style="white-space:nowrap;font-size:13px;color:var(--purple)">→ ${fmtShiftTime(req.newDate,req.newStart,req.newEnd)}</td>
+        <td><strong>${req.castName}</strong></td>
+        <td style="font-size:12px;color:var(--text3)">${req.memo||''}</td>
+        <td>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-green btn-sm" onclick="approveChangeReq(${req.row},${req.shiftId},'${req.newDate}','${req.newStart}','${req.newEnd}','${req.castName}')">承認</button>
+            <button class="btn btn-red btn-sm" onclick="rejectChangeReq(${req.row},'${req.castName}')">却下</button>
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }catch(e){ console.error('変更申請取得エラー:',e); }
+}
+async function approveChangeReq(row, shiftId, newDate, newStart, newEnd, castName){
+  if(!confirm(castName+' さんの変更申請を承認しますか？\n'+newDate+' '+newStart+'〜'+newEnd)) return;
+  try{
+    await apiGet('approveChangeRequest',{row, shiftId, newDate, newStart, newEnd, castName});
+    toast('変更を承認しました','success');
+    await loadChangeRequests(); await reloadShifts(); renderAdminCal();
+  }catch(e){ toast('承認エラー: '+e.message,'error'); }
+}
+async function rejectChangeReq(row, castName){
+  if(!confirm(castName+' さんの変更申請を却下しますか？')) return;
+  try{
+    await apiGet('rejectChangeRequest',{row, castName});
+    toast('却下しました','success');
+    await loadChangeRequests();
+  }catch(e){ toast('却下エラー: '+e.message,'error'); }
 }
 
 // ── カレンダー ──────────────────────────────
@@ -2929,7 +3102,7 @@ function closeMemoPopup(){ document.getElementById('memo-popup').style.display='
 
 // ── ユーティリティ ──────────────────────
 function closeModal(id){ document.getElementById(id)?.classList.add('hidden'); }
-function statusBadge(s){ const map={pending:'未承認',approved:'確定',rejected:'却下',cancelled:'キャンセル'}; return`<span class="badge b-${s}">${map[s]||s}</span>`; }
+function statusBadge(s){ const map={pending:'未承認',approved:'確定',rejected:'却下',cancelled:'キャンセル',change_requested:'変更申請中'}; return`<span class="badge b-${s}">${map[s]||s}</span>`; }
 function fmtDateD(dateStr){
   if(!dateStr)return'';
   const d=new Date(dateStr.replace(/\//g,'-')+'T00:00:00');
