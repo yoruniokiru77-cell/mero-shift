@@ -521,7 +521,7 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
       <div class="page-body">
         <div class="card">
           <div class="tw"><table>
-            <thead><tr><th>順</th><th>源氏名</th><th>本名</th><th>店舗</th><th>給料種別</th><th>ログインID</th><th>パスワード</th><th>バック率</th><th>給料表示</th><th>紹介スタッフ</th><th>操作</th></tr></thead>
+            <thead><tr><th>順</th><th>本名</th><th>源氏名</th><th>店舗</th><th>給料種別</th><th>ログインID</th><th>パスワード</th><th>バック率</th><th>給料表示</th><th>紹介スタッフ</th><th>操作</th></tr></thead>
             <tbody id="cast-body"></tbody>
           </table></div>
         </div>
@@ -946,7 +946,7 @@ async function notifyLine(userId, message) {
 
 // ── 状態 ──────────────────────────────────
 const S = {
-  castName:'', isAdmin:false,
+  castName:'', realName:'', isAdmin:false,
   casts:[], rooms:[],
   approvedShifts:[], pendingShifts:[],
   currentShifts:[],
@@ -1489,7 +1489,14 @@ async function bootApp() {
   document.getElementById('loading').classList.add('hide');
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').classList.add('show');
-  document.getElementById('sb-name').textContent=S.castName;
+  // 本名をS.realNameにセット（管理者はそのまま）
+  if(!S.isAdmin) {
+    const myCastData = S.casts.find(c => c.name === S.castName);
+    S.realName = myCastData?.realName || S.castName;
+  } else {
+    S.realName = '管理者';
+  }
+  document.getElementById('sb-name').textContent = S.realName;
   buildNav(); buildMonthFilter();
   if (S.isAdmin) {
     // カレンダー（キャスト別）をデフォルト表示
@@ -1877,9 +1884,9 @@ function buildCalGrid(gridId, labelEl, year, month, shifts, filterCast){
         const chip=document.createElement('div');
         // ルーム色 + pending時は点線枠クラス追加
         chip.className='cal-chip '+roomColorClass(s.roomName)+(s.status==='pending'?' pending':'');
-        chip.title=`${s.therapist} ${s.startTime}〜${s.endTime}${s.roomName?' ('+s.roomName+')':''}${s.memo?' ['+s.memo+']':''}`;
-        const memoMark=s.memo?`<span class="cal-memo-mark" onclick="event.stopPropagation();showMemoPopup(event,'${s.therapist}',\`${s.memo.replace(/`/g,'\\`')}\`)">📝</span>`:'';
-        const namePart=filterCast?'':`<div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.therapist}${memoMark}</div>`;
+        chip.title=`${castRealName(s.therapist)}（${s.therapist}） ${s.startTime}〜${s.endTime}${s.roomName?' ('+s.roomName+')':''}${s.memo?' ['+s.memo+']':''}`;
+        const memoMark=s.memo?`<span class="cal-memo-mark" onclick="event.stopPropagation();showMemoPopup(event,'${castRealName(s.therapist)}',\`${s.memo.replace(/`/g,'\\`')}\`)">📝</span>`:'';
+        const namePart=filterCast?'':`<div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${castRealName(s.therapist)}${memoMark}</div>`;
         const timePart=`<div>${s.startTime}〜${s.endTime}${filterCast?memoMark:''}</div>`;
         const rd=roomDisp(s.roomName);
         const rPart=rd?`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9">${rd}</div>`:'';
@@ -2179,7 +2186,7 @@ function renderApprovalTable(){
     tr.innerHTML=`
       <td class="cb-col">${ip?`<input type="checkbox" id="chk-${s.row}" value="${s.row}" onchange="onCheck(${s.row},this.checked)">`:''}</td>
       <td style="font-family:var(--mono);font-size:12px;white-space:nowrap;${isCancelled?'text-decoration:line-through':''}">${fmtShiftTime(s.date,s.startTime,s.endTime)}</td>
-      <td><strong>${s.therapist}</strong></td>
+      <td>${castNameCell(s.therapist)}</td>
       <td>${s.roomName?`<span style="color:var(--green)">${s.roomName}</span>`:'<span style="color:var(--text3)">未割当</span>'}</td>
       <td>${statusBadge(s.status)}</td>
       <td style="color:var(--text3);font-size:12px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${s.memo||''}</td>
@@ -2197,7 +2204,7 @@ function toggleAllCheck(chk){ S.currentShifts.filter(s=>s.status==='pending').fo
 
 function openApproveModal(row){
   const s=S.currentShifts.find(x=>x.row===row); if(!s)return; S.approveTarget=s;
-  document.getElementById('approve-info').innerHTML=`<b>${s.therapist}</b><br>${fmtShiftTime(s.date,s.startTime,s.endTime)}`;
+  document.getElementById('approve-info').innerHTML=`<b>${castRealName(s.therapist)}</b><span style="font-size:11px;color:var(--text3);margin-left:6px">${s.therapist}</span><br>${fmtShiftTime(s.date,s.startTime,s.endTime)}`;
   populateRoomSelect('approve-room', s.roomId, getCastShop(s.therapist));
   document.getElementById('conflict-warn').style.display='none';
   document.getElementById('m-approve').classList.remove('hidden');
@@ -2699,8 +2706,8 @@ async function renderCastTable(){
       const pwMask  = c.password ? '••••••' : '-';
       tr.innerHTML=`
         <td style="font-family:var(--mono);color:var(--text3);text-align:center;font-size:12px">${c.sortOrder && c.sortOrder!==9999 ? c.sortOrder : '-'}</td>
-        <td><strong>${c.name||'（未設定）'}</strong></td>
-        <td style="color:var(--text3)">${c.realName||'-'}</td>
+        <td><strong>${c.realName||'（未設定）'}</strong></td>
+        <td style="color:var(--text3)">${c.name||'-'}</td>
         <td style="color:var(--text2);font-size:12px">${c.shop||'-'}</td>
         <td><span class="pay-type-badge ${ptClass}">${ptLabel}</span></td>
         <td style="font-family:var(--mono);font-size:12px;color:var(--text3)">${c.loginId||'-'}</td>
@@ -3103,6 +3110,24 @@ function closeMemoPopup(){ document.getElementById('memo-popup').style.display='
 // ── ユーティリティ ──────────────────────
 function closeModal(id){ document.getElementById(id)?.classList.add('hidden'); }
 function statusBadge(s){ const map={pending:'未承認',approved:'確定',rejected:'却下',cancelled:'キャンセル',change_requested:'変更申請中'}; return`<span class="badge b-${s}">${map[s]||s}</span>`; }
+
+// 源氏名 → 本名を返す（見つからなければ源氏名そのまま）
+function castRealName(therapist){
+  const c = S.casts.find(x=>x.name===therapist);
+  return c?.realName || therapist;
+}
+// 「本名（源氏名）」形式で返す
+function castFullLabel(therapist){
+  const c = S.casts.find(x=>x.name===therapist);
+  if(!c || !c.realName || c.realName===therapist) return therapist;
+  return c.realName + '（' + therapist + '）';
+}
+// テーブル用：本名 大＋源氏名 小
+function castNameCell(therapist){
+  const c = S.casts.find(x=>x.name===therapist);
+  if(!c || !c.realName) return `<strong>${therapist}</strong>`;
+  return `<strong>${c.realName}</strong><div style="font-size:11px;color:var(--text3)">${therapist}</div>`;
+}
 function fmtDateD(dateStr){
   if(!dateStr)return'';
   const d=new Date(dateStr.replace(/\//g,'-')+'T00:00:00');
