@@ -238,9 +238,75 @@ function writePayslip(params) {
 }
 
 
+// ============================================================
+// LINE user_id 取得
+// 外部システムから本名または源氏名でLINE user_idを引く
+// GET ?action=getUserId&realName=山田花子
+// GET ?action=getUserId&castName=さくら
+// レスポンス: { success:true, userId:"Uxxx", castName:"さくら", realName:"山田花子" }
+//             { success:false, error:"..." }
+// ============================================================
+function getUserId(realName, castName) {
+  let rows;
+  if (realName) {
+    rows = sbGet('casts', 'real_name=eq.' + encodeURIComponent(realName) + '&select=id,name,real_name,user_id');
+  } else if (castName) {
+    rows = sbGet('casts', 'name=eq.' + encodeURIComponent(castName) + '&select=id,name,real_name,user_id');
+  }
+  if (!rows || !rows.length) return { ok: false, error: '該当するキャストが見つかりません' };
+  const cast = rows[0];
+  if (!cast.user_id) return { ok: false, error: cast.real_name + ' はまだLINE未登録です' };
+  return { ok: true, userId: cast.user_id, castName: cast.name, realName: cast.real_name };
+}
+
+// ============================================================
+// PDF送信（LINE push）
+// 外部システムからPDF URLとキャスト名を渡してLINE送信
+// GET ?action=sendPdf&realName=山田花子&pdfUrl=https://...&message=給与明細です
+// GET ?action=sendPdf&castName=さくら&pdfUrl=https://...
+// pdfUrl: 公開アクセス可能なPDFのURL（Google Drive共有リンク等）
+// message: 省略時はデフォルトメッセージを使用
+// ============================================================
+function sendPdfToLine(realName, castName, pdfUrl, message) {
+  const result = getUserId(realName, castName);
+  if (!result.ok) return result;
+
+  const displayName = result.realName || result.castName;
+  const defaultMsg  = displayName + ' さん、給与明細をお送りします。\n下記URLからご確認ください。\n\n' + pdfUrl;
+  const text        = message ? (message + '\n\n' + pdfUrl) : defaultMsg;
+
+  const code = pushLine(result.userId, text);
+  if (code === 200) {
+    return { ok: true, message: '送信完了: ' + displayName };
+  } else {
+    return { ok: false, error: 'LINE送信失敗 (HTTP ' + code + ')' };
+  }
+}
+
 // ── doGet: フロントからのLINE通知リクエストを受け取る ──
 function doGet(e) {
   const params = e.parameter;
+
+  // ── LINE user_id 取得 ──
+  if (params.action === 'getUserId') {
+    const res = getUserId(params.realName, params.castName);
+    const output = ContentService.createTextOutput(JSON.stringify({ success: res.ok, data: res }));
+    output.setMimeType(ContentService.MimeType.JSON);
+    return output;
+  }
+
+  // ── PDF送信 ──
+  if (params.action === 'sendPdf') {
+    if (!params.pdfUrl) {
+      const output = ContentService.createTextOutput(JSON.stringify({ success: false, error: 'pdfUrl は必須です' }));
+      output.setMimeType(ContentService.MimeType.JSON);
+      return output;
+    }
+    const res = sendPdfToLine(params.realName, params.castName, params.pdfUrl, params.message);
+    const output = ContentService.createTextOutput(JSON.stringify({ success: res.ok, data: res }));
+    output.setMimeType(ContentService.MimeType.JSON);
+    return output;
+  }
 
   // 明細書き込みリクエスト
   if (params.action === 'writePayslip') {
