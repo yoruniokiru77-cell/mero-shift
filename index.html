@@ -635,13 +635,39 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
 
 <!-- モーダル：キャスト登録 -->
 <div class="modal-ov hidden" id="m-cast">
-  <div class="modal">
+  <div class="modal" style="max-width:480px">
     <div class="modal-hd"><h3 id="cast-modal-title">キャスト登録</h3><button class="modal-cl" onclick="closeModal('m-cast')">✕</button></div>
     <div class="modal-bd">
-      <div class="fg"><label>本名 *</label><input type="text" id="cast-realname" placeholder="山田花子"></div>
-      <div class="fg"><label>源氏名 *</label><input type="text" id="cast-name" placeholder="さくら"></div>
+      <div class="g2">
+        <div class="fg"><label>本名 *</label><input type="text" id="cast-realname" placeholder="山田花子"></div>
+        <div class="fg"><label>源氏名 *</label><input type="text" id="cast-name" placeholder="さくら"></div>
+      </div>
       <div class="fg"><label>パスワード</label><input type="text" id="cast-password" placeholder="pass1234"></div>
       <div class="fg" style="display:none"><label>LINE userId</label><input type="text" id="cast-uid" placeholder="U…"></div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+      <div class="g2">
+        <div class="fg"><label>勤務スタイル</label>
+          <select id="cast-workstyle">
+            <option value="">未設定</option>
+            <option value="在宅">在宅</option>
+            <option value="通い">通い</option>
+          </select>
+        </div>
+        <div class="fg"><label>居住地</label><input type="text" id="cast-location" placeholder="東京都"></div>
+      </div>
+      <div class="fg"><label>チャット種別（複数選択可）</label>
+        <div style="display:flex;gap:14px;padding:8px 0;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="ct-acha" value="あちゃ"> あちゃ</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="ct-macha" value="まちゃ"> まちゃ</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="ct-ocha" value="おちゃ"> おちゃ</label>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="fg"><label>週何日</label><input type="number" id="cast-daysperweek" placeholder="3" min="0" max="7"></div>
+        <div class="fg"><label>1回何時間</label><input type="number" id="cast-hours" placeholder="4" min="0" step="0.5"></div>
+      </div>
+      <div class="fg"><label>月目標金額（円）</label><input type="number" id="cast-monthlytarget" placeholder="100000" min="0" step="1000"></div>
+      <div class="fg"><label>備考</label><textarea id="cast-notes" rows="4" style="width:100%;box-sizing:border-box;resize:vertical;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:var(--font);font-size:13px" placeholder="自由記入欄…"></textarea></div>
     </div>
     <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-cast')">キャンセル</button><button class="btn btn-primary" onclick="confirmCast()">保存</button></div>
   </div>
@@ -843,7 +869,13 @@ async function sbAction(action, params={}) {
     const p = params;
     const row = {
       name: p.name, real_name: p.realName||'',
-      password: p.password||'', user_id: p.userId||''
+      password: p.password||'', user_id: p.userId||'',
+      work_style: p.workStyle||'', chat_types: p.chatTypes||'',
+      location: p.location||'',
+      days_per_week: p.daysPerWeek!==''&&p.daysPerWeek!=null ? Number(p.daysPerWeek) : null,
+      hours_per_day: p.hoursPerDay!==''&&p.hoursPerDay!=null ? Number(p.hoursPerDay) : null,
+      monthly_target: p.monthlyTarget!==''&&p.monthlyTarget!=null ? Number(p.monthlyTarget) : null,
+      notes: p.notes||''
     };
     const exist = await sbSelect('casts', {eq:{name:p.name}});
     if(exist.length) {
@@ -1251,7 +1283,11 @@ function sbCastFmt(r) {
     payType:r.pay_type||'normal', backRate:r.back_rate??0.3,
     showPayroll:r.show_payroll!==false, referrer:r.referrer||'',
     sortOrder:r.sort_order??9999, shop:r.shop||'',
-    registeredAt:r.created_at ? r.created_at.slice(0,10).replace(/-/g,'/') : ''
+    registeredAt:r.created_at ? r.created_at.slice(0,10).replace(/-/g,'/') : '',
+    workStyle:r.work_style||'', chatTypes:r.chat_types||'',
+    location:r.location||'', daysPerWeek:r.days_per_week??'',
+    hoursPerDay:r.hours_per_day??'', monthlyTarget:r.monthly_target??'',
+    notes:r.notes||''
   };
 }
 function sbShiftFmt(r) {
@@ -2543,17 +2579,36 @@ function openCastModal(key=''){
   document.getElementById('cast-password').value=c?.password||'';
   document.getElementById('cast-uid').value=c?.userId||'';
   document.getElementById('cast-uid').readOnly=!!(c&&c.userId);
+  document.getElementById('cast-workstyle').value=c?.workStyle||'';
+  document.getElementById('cast-location').value=c?.location||'';
+  document.getElementById('cast-daysperweek').value=c?.daysPerWeek??'';
+  document.getElementById('cast-hours').value=c?.hoursPerDay??'';
+  document.getElementById('cast-monthlytarget').value=c?.monthlyTarget??'';
+  document.getElementById('cast-notes').value=c?.notes||'';
+  const types=(c?.chatTypes||'').split(',').map(s=>s.trim());
+  document.getElementById('ct-acha').checked=types.includes('あちゃ');
+  document.getElementById('ct-macha').checked=types.includes('まちゃ');
+  document.getElementById('ct-ocha').checked=types.includes('おちゃ');
   document.getElementById('m-cast').classList.remove('hidden');
 }
 async function confirmCast(){
-  const realName = document.getElementById('cast-realname').value.trim();
-  const name     = document.getElementById('cast-name').value.trim();
-  const password = document.getElementById('cast-password').value.trim();
-  const userId   = document.getElementById('cast-uid').value.trim();
+  const realName      = document.getElementById('cast-realname').value.trim();
+  const name          = document.getElementById('cast-name').value.trim();
+  const password      = document.getElementById('cast-password').value.trim();
+  const userId        = document.getElementById('cast-uid').value.trim();
+  const workStyle     = document.getElementById('cast-workstyle').value;
+  const location      = document.getElementById('cast-location').value.trim();
+  const daysPerWeek   = document.getElementById('cast-daysperweek').value;
+  const hoursPerDay   = document.getElementById('cast-hours').value;
+  const monthlyTarget = document.getElementById('cast-monthlytarget').value;
+  const notes         = document.getElementById('cast-notes').value.trim();
+  const chatTypes     = ['ct-acha','ct-macha','ct-ocha']
+    .filter(id=>document.getElementById(id).checked)
+    .map(id=>document.getElementById(id).value).join(',');
   if(!realName){toast('本名を入力してください','error');return;}
   if(!name){toast('源氏名を入力してください','error');return;}
   try{
-    await apiGet('saveCast',{name,realName,password,userId});
+    await apiGet('saveCast',{name,realName,password,userId,workStyle,chatTypes,location,daysPerWeek,hoursPerDay,monthlyTarget,notes});
     toast('保存しました','success'); closeModal('m-cast'); await renderCastTable();
   }catch(e){toast('保存エラー: '+e.message,'error');}
 }
