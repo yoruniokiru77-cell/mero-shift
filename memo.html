@@ -344,6 +344,12 @@ async function init() {
   document.getElementById('app').classList.add('show');
   renderGenreTabs();
   renderCasts();
+  // URLパラメータ ?cast=源氏名 で指定キャストを自動オープン
+  const castParam = new URLSearchParams(location.search).get('cast');
+  if(castParam){
+    const found = D.casts.find(c=>c.name===castParam);
+    if(found) openMemoPanel(found);
+  }
 }
 
 // ── ジャンルタブ ─────────────────────────
