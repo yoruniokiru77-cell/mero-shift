@@ -656,10 +656,10 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
         <div class="fg"><label>居住地</label><input type="text" id="cast-location" placeholder="東京都"></div>
       </div>
       <div class="fg"><label>チャット種別（複数選択可）</label>
-        <div style="display:flex;gap:14px;padding:8px 0;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="ct-acha" value="あちゃ"> あちゃ</label>
-          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="ct-macha" value="まちゃ"> まちゃ</label>
-          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="ct-ocha" value="おちゃ"> おちゃ</label>
+        <div style="display:flex;gap:8px;padding:4px 0;flex-wrap:wrap">
+          <button type="button" id="ct-acha" onclick="toggleChatType(this)" data-value="あちゃ" style="border:2px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:20px;padding:5px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s">あちゃ</button>
+          <button type="button" id="ct-macha" onclick="toggleChatType(this)" data-value="まちゃ" style="border:2px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:20px;padding:5px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s">まちゃ</button>
+          <button type="button" id="ct-ocha" onclick="toggleChatType(this)" data-value="おちゃ" style="border:2px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:20px;padding:5px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s">おちゃ</button>
         </div>
       </div>
       <div class="g2">
@@ -2597,9 +2597,14 @@ function openCastModal(key=''){
   document.getElementById('cast-monthlytarget').value=c?.monthlyTarget??'';
   document.getElementById('cast-notes').value=c?.notes||'';
   const types=(c?.chatTypes||'').split(',').map(s=>s.trim());
-  document.getElementById('ct-acha').checked=types.includes('あちゃ');
-  document.getElementById('ct-macha').checked=types.includes('まちゃ');
-  document.getElementById('ct-ocha').checked=types.includes('おちゃ');
+  ['ct-acha','ct-macha','ct-ocha'].forEach(id=>{
+    const btn=document.getElementById(id);
+    const on=types.includes(btn.dataset.value);
+    btn.style.background=on?'var(--accent)':'var(--bg3)';
+    btn.style.color=on?'#fff':'var(--text2)';
+    btn.style.borderColor=on?'var(--accent)':'var(--border)';
+    btn.dataset.selected=on?'1':'';
+  });
   document.getElementById('m-cast').classList.remove('hidden');
 }
 async function confirmCast(){
@@ -2614,14 +2619,21 @@ async function confirmCast(){
   const monthlyTarget = document.getElementById('cast-monthlytarget').value;
   const notes         = document.getElementById('cast-notes').value.trim();
   const chatTypes     = ['ct-acha','ct-macha','ct-ocha']
-    .filter(id=>document.getElementById(id).checked)
-    .map(id=>document.getElementById(id).value).join(',');
+    .filter(id=>document.getElementById(id).dataset.selected==='1')
+    .map(id=>document.getElementById(id).dataset.value).join(',');
   if(!realName){toast('本名を入力してください','error');return;}
   if(!name){toast('源氏名を入力してください','error');return;}
   try{
     await apiGet('saveCast',{name,realName,password,userId,workStyle,chatTypes,location,daysPerWeek,hoursPerDay,monthlyTarget,notes});
     toast('保存しました','success'); closeModal('m-cast'); await renderCastTable();
   }catch(e){toast('保存エラー: '+e.message,'error');}
+}
+function toggleChatType(btn){
+  const on=btn.dataset.selected==='1';
+  btn.dataset.selected=on?'':'1';
+  btn.style.background=on?'var(--bg3)':'var(--accent)';
+  btn.style.color=on?'var(--text2)':'#fff';
+  btn.style.borderColor=on?'var(--border)':'var(--accent)';
 }
 async function doDeleteCast(name){ if(!confirm(name+' を削除しますか？'))return; try{ await apiGet('deleteCast',{name}); toast('削除しました','success'); await renderCastTable(); }catch(e){toast('削除エラー','error');} }
 
