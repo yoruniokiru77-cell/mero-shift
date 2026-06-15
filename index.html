@@ -451,8 +451,6 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
         </div>
         <!-- キャスト固定行ビュー -->
         <div id="cal-cast-view" style="display:none">
-          <!-- 店舗タブ -->
-          <div id="shop-tabs" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)"></div>
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px">
             <div id="cast-cal-wrap"></div>
           </div>
@@ -1752,7 +1750,6 @@ function setCalView(view){
   if(todayBtn) todayBtn.textContent = view==='cast' ? '今週' : '今月';
   if(view === 'cast'){
     if(!S.calWeekBase) S.calWeekBase = getMonday(new Date());
-    buildShopTabs();
   }
   renderAdminCal();
 }
@@ -1788,7 +1785,6 @@ function renderAdminCal(){
     const sun = new Date(base); sun.setDate(base.getDate() + 6);
     labelEl.textContent = (base.getMonth()+1)+'/'+base.getDate()+'（月）〜'+(sun.getMonth()+1)+'/'+sun.getDate()+'（日）';
     buildCastCal(base, [...S.approvedShifts, ...S.pendingShifts]);
-    buildShopTabs();
   } else {
     const d = S.calMonth.admin;
     labelEl.textContent = d.getFullYear()+'年'+(d.getMonth()+1)+'月';
@@ -1847,11 +1843,8 @@ function buildCastCal(weekBase, shifts){
                  label: (d.getMonth()+1)+'/'+d.getDate() });
   }
 
-  // キャストマスタから表示対象（店舗フィルター適用）
-  const allCasts = S.casts.filter(c => c.name && c.name !== '管理者');
-  const casts = (S_shopFilter && S_shopFilter !== '__all__')
-    ? allCasts.filter(c => c.shop === S_shopFilter)
-    : allCasts;
+  // キャストマスタから表示対象
+  const casts = S.casts.filter(c => c.name && c.name !== '管理者');
   if(!casts.length){ wrap.innerHTML='<div style="padding:20px;color:var(--text3)">該当するキャストがいません</div>'; return; }
 
   // shiftMap[キャスト名][yyyy/MM/dd] = [shift, ...]
