@@ -481,7 +481,7 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
       <div class="page-body">
         <div class="card">
           <div class="tw"><table>
-            <thead><tr><th>本名</th><th>源氏名</th><th>パスワード</th><th>操作</th></tr></thead>
+            <thead><tr><th>本名</th><th>源氏名</th><th>スタイル / 種別</th><th>居住地</th><th>週/時間/目標</th><th>備考</th><th>操作</th></tr></thead>
             <tbody id="cast-body"></tbody>
           </table></div>
         </div>
@@ -2546,7 +2546,7 @@ async function renderCastTable(){
     const tbody=document.getElementById('cast-body'); tbody.innerHTML='';
 
     if(!S.casts.length){
-      tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">キャストが登録されていません</td></tr>';
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">キャストが登録されていません</td></tr>';
       return;
     }
 
@@ -2554,10 +2554,20 @@ async function renderCastTable(){
       const tr=document.createElement('tr');
       const editKey = c.userId ? c.userId : ('__name__'+c.name);
       const pwMask  = c.password ? '••••••' : '-';
+      const styleCell  = [c.workStyle, c.chatTypes].filter(Boolean).join(' / ') || '-';
+      const weekCell   = [
+        c.daysPerWeek  ? c.daysPerWeek+'日'   : '',
+        c.hoursPerDay  ? c.hoursPerDay+'h'    : '',
+        c.monthlyTarget? '¥'+Number(c.monthlyTarget).toLocaleString() : ''
+      ].filter(Boolean).join(' / ') || '-';
+      const notesCell  = c.notes ? `<span title="${c.notes.replace(/"/g,'&quot;')}" style="cursor:help">${c.notes.length>20?c.notes.slice(0,20)+'…':c.notes}</span>` : '-';
       tr.innerHTML=`
         <td><strong>${c.realName||'（未設定）'}</strong></td>
         <td style="color:var(--text3)">${c.name||'-'}</td>
-        <td style="font-family:var(--mono);font-size:12px;color:var(--text3)">${pwMask}</td>
+        <td style="font-size:12px">${styleCell}</td>
+        <td style="font-size:12px;color:var(--text2)">${c.location||'-'}</td>
+        <td style="font-size:12px;color:var(--text2);white-space:nowrap">${weekCell}</td>
+        <td style="font-size:12px;color:var(--text3)">${notesCell}</td>
         <td>
           <div style="display:flex;gap:4px;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="openCastModal('${editKey}')">編集</button>
