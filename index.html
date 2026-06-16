@@ -1146,7 +1146,7 @@ async function sbAction(action, params={}) {
     return rows4.map(sbRoomFmt);
   }
   case 'saveRoomMaster': {
-    const rrow = {name:params.name||'', description:params.desc||'', display_order:params.order||0, active:params.active!==false, shop:params.shop||''};
+    const rrow = {name:params.name||'', description:params.desc||'', display_order:params.order||0, active:params.active!==false};
     if(params.row) { await sbUpdate('rooms', rrow, {id:params.row}); }
     else { await sbInsert('rooms', rrow); }
     return {ok:true};
@@ -1304,7 +1304,7 @@ function sbShiftFmt(r) {
 function sbRoomFmt(r) {
   return {
     row:r.id, id:String(r.id), name:r.name||'', desc:r.description||'',
-    order:r.display_order||0, active:r.active!==false, shop:r.shop||''
+    order:r.display_order||0, active:r.active!==false
   };
 }
 function sbShopFmt(r) {
@@ -3006,11 +3006,10 @@ function populateRoomSelect(selId, currentRoomId, shopName){
   sel.innerHTML = '<option value="">未割当</option>';
   let rooms = S.rooms.filter(r => r.active);
   // 店舗名が指定されていれば絞り込み（店舗未設定のルームは常に表示）
-  if(shopName) rooms = rooms.filter(r => !r.shop || r.shop === shopName);
   rooms.forEach(r=>{
     const opt = document.createElement('option');
     opt.value = r.id;
-    opt.textContent = r.name + (r.shop ? ' ('+r.shop+')' : '');
+    opt.textContent = r.name;
     if(String(r.id)===String(currentRoomId)) opt.selected=true;
     sel.appendChild(opt);
   });
