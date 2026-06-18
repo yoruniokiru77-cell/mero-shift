@@ -174,6 +174,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
     <div class="memo-sheet-header">
       <div class="avatar" id="panel-avatar"></div>
       <div class="name" id="panel-name"></div>
+      <button class="btn btn-primary btn-sm" onclick="openMemoModalForPanel()" style="margin-left:auto;margin-right:8px">＋ 追加</button>
       <button class="memo-sheet-close" onclick="closeMemPanel()">✕</button>
     </div>
     <div class="memo-list" id="panel-memo-list"></div>
@@ -409,6 +410,7 @@ function renderCasts() {
 
 // ── メモパネル ───────────────────────────
 function openMemoPanel(cast) {
+  D.panelCast = cast;
   const initial = cast.name.charAt(0);
   document.getElementById('panel-avatar').textContent = initial;
   document.getElementById('panel-name').textContent = cast.name;
@@ -564,13 +566,17 @@ function populateMemoSelects() {
   });
 }
 
+function openMemoModalForPanel() {
+  openMemoModal(0, D.panelCast?.name || '');
+}
+
 // メモモーダル
-function openMemoModal(row=0) {
+function openMemoModal(row=0, presetCast='') {
   const m = row ? D.memos.find(x=>x.row===row) : null;
   D.memoEditTarget = m || null;
   document.getElementById('memo-modal-title').textContent = m ? 'メモ編集' : 'メモ追加';
   populateMemoSelects();
-  document.getElementById('mm-cast').value  = m?.castName || '';
+  document.getElementById('mm-cast').value  = m?.castName || presetCast;
   document.getElementById('mm-genre').value = m?.genre    || '';
   document.getElementById('mm-body').value  = m?.body     || '';
   document.getElementById('m-memo').classList.remove('hidden');
@@ -590,6 +596,7 @@ async function confirmMemo() {
     closeModal('m-memo');
     renderAdminMemoList();
     renderCasts();
+    if(D.panelCast) openMemoPanel(D.panelCast);
   } catch(e) { toast('保存エラー: '+e.message, 'error'); }
 }
 async function doDeleteMemo(row) {
