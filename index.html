@@ -666,7 +666,10 @@ tr.pr-spacer td{padding:0;border:none !important;height:0}
         <div class="fg"><label>週何日</label><input type="number" id="cast-daysperweek" placeholder="3" min="0" max="7"></div>
         <div class="fg"><label>1回何時間</label><input type="number" id="cast-hours" placeholder="4" min="0" step="0.5"></div>
       </div>
-      <div class="fg"><label>月目標金額（円）</label><input type="number" id="cast-monthlytarget" placeholder="100000" min="0" step="1000"></div>
+      <div class="g2">
+        <div class="fg"><label>月目標金額（円）</label><input type="number" id="cast-monthlytarget" placeholder="100000" min="0" step="1000"></div>
+        <div class="fg"><label>並び順</label><input type="number" id="cast-sortorder" placeholder="1" min="1"></div>
+      </div>
       <div class="fg"><label>備考</label><textarea id="cast-notes" rows="4" style="width:100%;box-sizing:border-box;resize:vertical;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:var(--font);font-size:13px" placeholder="自由記入欄…"></textarea></div>
     </div>
     <div class="modal-ft"><button class="btn btn-ghost" onclick="closeModal('m-cast')">キャンセル</button><button class="btn btn-primary" onclick="confirmCast()">保存</button></div>
@@ -875,6 +878,7 @@ async function sbAction(action, params={}) {
       days_per_week: p.daysPerWeek!==''&&p.daysPerWeek!=null ? Number(p.daysPerWeek) : null,
       hours_per_day: p.hoursPerDay!==''&&p.hoursPerDay!=null ? Number(p.hoursPerDay) : null,
       monthly_target: p.monthlyTarget!==''&&p.monthlyTarget!=null ? Number(p.monthlyTarget) : null,
+      sort_order: p.sortOrder!==''&&p.sortOrder!=null ? Number(p.sortOrder) : 9999,
       notes: p.notes||''
     };
     const exist = await sbSelect('casts', {eq:{name:p.name}});
@@ -1879,9 +1883,14 @@ function buildCastCal(weekBase, shifts){
                  label: (d.getMonth()+1)+'/'+d.getDate() });
   }
 
-  // キャストマスタから表示対象
-  const casts = S.casts.filter(c => c.name && c.name !== '管理者');
-  if(!casts.length){ wrap.innerHTML='<div style="padding:20px;color:var(--text3)">該当するキャストがいません</div>'; return; }
+  // キャストマスタから表示対象（一時並び順 S.calCastOrder を優先）
+  const baseCasts = S.casts.filter(c => c.name && c.name !== '管理者');
+  if(!baseCasts.length){ wrap.innerHTML='<div style="padding:20px;color:var(--text3)">該当するキャストがいません</div>'; return; }
+  if(!S.calCastOrder || S.calCastOrder.length !== baseCasts.length ||
+     !baseCasts.every(c=>S.calCastOrder.includes(c.name))){
+    S.calCastOrder = baseCasts.map(c=>c.name);
+  }
+  const casts = S.calCastOrder.map(n=>baseCasts.find(c=>c.name===n)).filter(Boolean);
 
   // shiftMap[キャスト名][yyyy/MM/dd] = [shift, ...]
   const shiftMap = {};
@@ -1930,8 +1939,14 @@ function buildCastCal(weekBase, shifts){
       .filter(s => s.status==='approved');
     const hasShift = castWeekShifts.length > 0;
     const safeId = 'cn_' + cast.name.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ一-龠]/g,'_') + '_' + Date.now();
+    const castIdx = S.calCastOrder.indexOf(cast.name);
+    const btnStyle = 'font-size:9px;padding:1px 3px;border:1px solid var(--border);border-radius:3px;background:var(--bg3);color:var(--text2);cursor:pointer;line-height:1;flex-shrink:0';
     tdName.innerHTML =
-      '<div style="display:flex;align-items:center;justify-content:center;gap:4px;width:100%">'
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:100%">'
+      + '<div style="display:flex;gap:2px">'
+      + (castIdx>0 ? '<button class="cal-order-btn" data-name="'+cast.name.replace(/"/g,'&quot;')+'" data-dir="-1" style="'+btnStyle+'">▲</button>' : '<span style="width:18px"></span>')
+      + (castIdx<S.calCastOrder.length-1 ? '<button class="cal-order-btn" data-name="'+cast.name.replace(/"/g,'&quot;')+'" data-dir="1" style="'+btnStyle+'">▼</button>' : '<span style="width:18px"></span>')
+      + '</div>'
       + '<span style="font-size:11px;font-weight:700;line-height:1.4;text-align:center">' + cast.name + '</span>'
       + (hasShift
         ? '<button data-cast="' + cast.name.replace(/"/g,'&quot;') + '" data-rows="' + castWeekShifts.map(s=>s.row).join(',') + '" '
@@ -1984,6 +1999,22 @@ function buildCastCal(weekBase, shifts){
   table.appendChild(tbody);
   wrap.innerHTML = '';
   wrap.appendChild(table);
+
+  // ↑↓ボタンのイベント
+  wrap.querySelectorAll('.cal-order-btn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const name = btn.dataset.name;
+      const dir  = Number(btn.dataset.dir);
+      const idx  = S.calCastOrder.indexOf(name);
+      if(idx < 0) return;
+      const newIdx = idx + dir;
+      if(newIdx < 0 || newIdx >= S.calCastOrder.length) return;
+      S.calCastOrder.splice(idx, 1);
+      S.calCastOrder.splice(newIdx, 0, name);
+      buildCastCal(weekBase, shifts);
+    });
+  });
 }
 
 function renderMyCal(){ const d=S.calMonth.my; buildCalGrid('my-cal-grid',document.getElementById('my-cal-label'),d.getFullYear(),d.getMonth(),[...S.approvedShifts,...S.pendingShifts],S.castName); }
@@ -2595,6 +2626,7 @@ function openCastModal(key=''){
   document.getElementById('cast-daysperweek').value=c?.daysPerWeek??'';
   document.getElementById('cast-hours').value=c?.hoursPerDay??'';
   document.getElementById('cast-monthlytarget').value=c?.monthlyTarget??'';
+  document.getElementById('cast-sortorder').value=c?.sortOrder!==9999?c?.sortOrder??'':'';
   document.getElementById('cast-notes').value=c?.notes||'';
   const types=(c?.chatTypes||'').split(',').map(s=>s.trim());
   ['ct-acha','ct-macha','ct-ocha'].forEach(id=>{
@@ -2617,6 +2649,7 @@ async function confirmCast(){
   const daysPerWeek   = document.getElementById('cast-daysperweek').value;
   const hoursPerDay   = document.getElementById('cast-hours').value;
   const monthlyTarget = document.getElementById('cast-monthlytarget').value;
+  const sortOrder     = document.getElementById('cast-sortorder').value;
   const notes         = document.getElementById('cast-notes').value.trim();
   const chatTypes     = ['ct-acha','ct-macha','ct-ocha']
     .filter(id=>document.getElementById(id).dataset.selected==='1')
@@ -2624,7 +2657,7 @@ async function confirmCast(){
   if(!realName){toast('本名を入力してください','error');return;}
   if(!name){toast('源氏名を入力してください','error');return;}
   try{
-    await apiGet('saveCast',{name,realName,password,userId,workStyle,chatTypes,location,daysPerWeek,hoursPerDay,monthlyTarget,notes});
+    await apiGet('saveCast',{name,realName,password,userId,workStyle,chatTypes,location,daysPerWeek,hoursPerDay,monthlyTarget,sortOrder,notes});
     toast('保存しました','success'); closeModal('m-cast'); await renderCastTable();
   }catch(e){toast('保存エラー: '+e.message,'error');}
 }
