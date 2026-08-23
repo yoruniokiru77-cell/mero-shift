@@ -293,12 +293,13 @@ async function apiGet(action, params={}) {
       }));
     }
     case 'getMemoMaster': {
-      const rows = await sbQ('memos', {order:'created_at'});
+      const rows = await sbQ('memos', {order:'display_order'});
       return rows.map(r => ({
         row: r.id,
         castName: r.cast_name,
         genre: r.genre || '',
-        body: r.body || ''
+        body: r.body || '',
+        displayOrder: r.display_order ?? 0
       }));
     }
     case 'getGenres': {
@@ -313,6 +314,11 @@ async function apiGet(action, params={}) {
     }
     case 'deleteMemo': {
       const {error}=await sb.from('memos').delete().eq('id',params.row);
+      if(error)throw new Error(error.message);
+      return {ok:true};
+    }
+    case 'updateMemoOrder': {
+      const {error}=await sb.from('memos').update({display_order:params.order}).eq('id',params.row);
       if(error)throw new Error(error.message);
       return {ok:true};
     }
@@ -453,6 +459,8 @@ function openMemoPanel(cast) {
           <div class="memo-copy-hint">タップでコピー</div>
           <div class="memo-copied">✅ コピーしました</div>
           <div class="memo-item-actions" onclick="event.stopPropagation()">
+            <button class="memo-action-btn" onclick="moveMemoInPanel(${memo.row},-1)">▲</button>
+            <button class="memo-action-btn" onclick="moveMemoInPanel(${memo.row},1)">▼</button>
             <button class="memo-action-btn" onclick="openMemoModal(${memo.row},'')">✏️</button>
             <button class="memo-action-btn memo-action-del" onclick="confirmDeleteMemoFromPanel(${memo.row})">🗑️</button>
           </div>
@@ -468,6 +476,39 @@ function openMemoPanel(cast) {
 
 function closeMemPanel() {
   document.getElementById('memo-panel').style.display = 'none';
+}
+
+async function moveMemoInPanel(row, dir) {
+  // パネルに表示中のキャストのメモのみ対象
+  const cast = D.panelCast;
+  if (!cast) return;
+  const panelMemos = D.memos.filter(m =>
+    m.castName === cast.name &&
+    (D.activeGenre === '__all__' || m.genre === D.activeGenre)
+  );
+  const idx = panelMemos.findIndex(m => m.row === row);
+  const swapIdx = idx + dir;
+  if (swapIdx < 0 || swapIdx >= panelMemos.length) return;
+
+  const a = panelMemos[idx];
+  const b = panelMemos[swapIdx];
+  const tmpOrder = a.displayOrder;
+  a.displayOrder = b.displayOrder;
+  b.displayOrder = tmpOrder;
+
+  // 同値の場合は差をつける
+  if (a.displayOrder === b.displayOrder) {
+    a.displayOrder = b.displayOrder + (dir > 0 ? 1 : -1);
+  }
+
+  try {
+    await Promise.all([
+      apiGet('updateMemoOrder', { row: a.row, order: a.displayOrder }),
+      apiGet('updateMemoOrder', { row: b.row, order: b.displayOrder })
+    ]);
+    D.memos = await apiGet('getMemoMaster');
+    openMemoPanel(cast);
+  } catch(e) { toast('並び替えエラー', 'error'); }
 }
 
 async function confirmDeleteMemoFromPanel(row) {
