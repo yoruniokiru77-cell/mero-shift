@@ -67,6 +67,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .memo-list{overflow-y:auto;padding:10px 12px 24px;flex:1}
 .memo-genre-label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:10px 4px 6px;margin-top:4px}
 .memo-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.memo-item-actions{position:absolute;top:6px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.memo-item:hover .memo-item-actions{opacity:1}
+.memo-action-btn{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:13px;cursor:pointer;line-height:1.4}
+.memo-action-del{border-color:#e55}
 .memo-item:active{transform:scale(.98)}
 .memo-item:hover{border-color:var(--green)}
 .memo-item-title{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px}
@@ -445,10 +449,13 @@ function openMemoPanel(cast) {
         const item = document.createElement('div');
         item.className = 'memo-item';
         item.innerHTML = `
-
           <div class="memo-item-body">${memo.body}</div>
           <div class="memo-copy-hint">タップでコピー</div>
           <div class="memo-copied">✅ コピーしました</div>
+          <div class="memo-item-actions" onclick="event.stopPropagation()">
+            <button class="memo-action-btn" onclick="openMemoModal(${memo.row},'')">✏️</button>
+            <button class="memo-action-btn memo-action-del" onclick="confirmDeleteMemoFromPanel(${memo.row})">🗑️</button>
+          </div>
         `;
         item.onclick = () => copyMemo(item, memo.body);
         list.appendChild(item);
@@ -461,6 +468,18 @@ function openMemoPanel(cast) {
 
 function closeMemPanel() {
   document.getElementById('memo-panel').style.display = 'none';
+}
+
+async function confirmDeleteMemoFromPanel(row) {
+  if (!confirm('このメモを削除しますか？')) return;
+  try {
+    await apiGet('deleteMemo', { row });
+    D.memos = await apiGet('getMemoMaster');
+    toast('削除しました', 'success');
+    renderAdminMemoList();
+    renderCasts();
+    if (D.panelCast) openMemoPanel(D.panelCast);
+  } catch(e) { toast('削除エラー', 'error'); }
 }
 
 async function copyMemo(el, text) {
